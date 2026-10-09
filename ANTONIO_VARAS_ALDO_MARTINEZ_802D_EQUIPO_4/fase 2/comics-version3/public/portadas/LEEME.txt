@@ -1,0 +1,14 @@
+Pon aqui las portadas con estos nombres (jpg, o cambia la extension en src/data.js):
+
+ciudad.jpg    -> La ciudad sumergida
+huesos.jpg      -> Huesos de domingo
+ceniza.jpg      -> Jardin de ceniza
+mensajera.jpg   -> Mensajera del sal (tambien se usa en la campana del inicio)
+despedida.jpg   -> El silencio antes de una Despedida
+hero1.jpg       -> imagen grande del inicio
+hero2.jpg       -> imagen chica de arriba del inicio
+hero3.jpg       -> imagen chica de abajo del inicio
+
+La ciudad sumergida usa por ahora un link externo; cuando tengas el archivo, guardalo como ciudad.jpg
+y cambia img en src/data.js por '/portadas/ciudad.jpg'.
+Si una imagen no existe, la app muestra un degradado en su lugar.

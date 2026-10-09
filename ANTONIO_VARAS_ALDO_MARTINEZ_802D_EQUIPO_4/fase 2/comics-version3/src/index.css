@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+@theme {
+  --color-crema: #f6f2e7;
+  --color-violeta: #6c47ff;
+  --color-lima: #ccff3d;
+  --color-tinta: #15111f;
+  --color-coral: #ff6b4a;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+body { @apply bg-crema text-tinta font-sans antialiased; }
