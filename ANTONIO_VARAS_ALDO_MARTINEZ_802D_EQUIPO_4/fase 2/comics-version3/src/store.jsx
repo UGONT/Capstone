@@ -38,7 +38,7 @@ export function StoreProvider({ children }) {
   }
   const addComic = (c) => {
     const id = Date.now()
-    setComics((p) => [{ bg: 'from-violet-500 to-lime-300', capitulos: [], avance: [], recaudado: 0, apoyos: 0, estado: 'En campaña', ...c, id, creador: user.email, autor: user.nombre }, ...p])
+    setComics((p) => [{ bg: 'from-violet-500 to-lime-300', capitulos: [], avance: [], recaudado: 0, apoyos: 0, estado: 'En campaña', ...c, id, creador: user.email, autor: c.autor?.trim() || user.nombre }, ...p])
     return id
   }
   const aporteDe = (id) => (user ? apoyos[`${user.email}:${id}`] || 0 : 0)

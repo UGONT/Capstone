@@ -57,7 +57,7 @@ export function Detalle() {
           <p className="mt-4 max-w-2xl leading-relaxed text-tinta/70">{c.descripcion}</p>
           <p className="mt-6 text-sm text-tinta/50">Géneros</p>
           <div className="mt-2 flex flex-wrap gap-2">{c.generos.map((g) => <span key={g} className="rounded-md bg-violeta/15 px-3 py-1 text-sm text-violeta">{g}</span>)}</div>
-          <p className="mt-6 text-sm text-tinta/50">Autor</p>
+          <p className="mt-6 text-sm text-tinta/50">Autoría</p>
           <p>{c.autor}</p>
         </div>
       </div>
@@ -125,7 +125,7 @@ export function Detalle() {
 export function Publicar() {
   const { user, addComic } = useStore()
   const nav = useNavigate()
-  const [f, setF] = useState({ titulo: '', descripcion: '', generos: [], meta: 5000, dias: 30, formato: 'Digital + Físico', img: '', avance: [] })
+  const [f, setF] = useState({ titulo: '', autor: '', descripcion: '', generos: [], meta: 5000, dias: 30, formato: 'Digital + Físico', img: '', avance: [] })
   if (!user) return <Navigate to="/login" replace />
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
   const alternar = (g) => setF({ ...f, generos: f.generos.includes(g) ? f.generos.filter((x) => x !== g) : [...f.generos, g] })
@@ -137,6 +137,7 @@ export function Publicar() {
       <p className="mt-3 text-tinta/60">Sube la portada y un avance, define tu meta y los lectores podrán apoyarte.</p>
       <form onSubmit={enviar} className="mt-8 space-y-5">
         <label className="block">Título<input required value={f.titulo} onChange={set('titulo')} className={`${campo} mt-1`} /></label>
+        <label className="block">Autor o autores<input value={f.autor} onChange={set('autor')} placeholder="Tu nombre, un seudónimo o varios separados por coma" className={`${campo} mt-1`} /><span className="text-xs text-tinta/50">Si lo dejas vacío se usa el nombre de tu cuenta.</span></label>
         <label className="block">Descripción<textarea required rows={4} value={f.descripcion} onChange={set('descripcion')} className={`${campo} mt-1`} /></label>
         <div><p>Géneros</p><div className="mt-2 flex flex-wrap gap-2">{GENEROS.map((g) => <button type="button" key={g} onClick={() => alternar(g)} className={chip(f.generos.includes(g))}>{g}</button>)}</div></div>
         <div className="grid gap-5 sm:grid-cols-3">
@@ -161,14 +162,16 @@ export function Publicar() {
 export function Login() {
   const [params] = useSearchParams()
   const [registro, setRegistro] = useState(params.get('modo') === 'registro')
+  const [error, setError] = useState('')
   const { login } = useStore()
   const nav = useNavigate()
-  const [f, setF] = useState({ nombre: '', email: '', password: '', leidos: [], generos: [] })
+  const [f, setF] = useState({ nombre: '', email: '', password: '', password2: '', edad: '', leidos: [], generos: [] })
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
   const alternar = (g) => setF({ ...f, generos: f.generos.includes(g) ? f.generos.filter((x) => x !== g) : [...f.generos, g] })
   const enviar = (e) => {
     e.preventDefault()
-    login({ email: f.email, nombre: f.nombre || f.email.split('@')[0], leidos: f.leidos, generos: f.generos }, registro)
+    if (registro && f.password !== f.password2) return setError('Las contraseñas no coinciden')
+    login({ email: f.email, nombre: f.nombre || f.email.split('@')[0], edad: Number(f.edad) || null, leidos: f.leidos, generos: f.generos }, registro)
     nav('/explorar')
   }
 
@@ -177,8 +180,10 @@ export function Login() {
       <h1 className="text-4xl font-light">{registro ? 'Crea tu cuenta' : 'Inicia sesión'}</h1>
       <form onSubmit={enviar} className="mt-8 space-y-5">
         {registro && <label className="block">Nombre<input required value={f.nombre} onChange={set('nombre')} className={`${campo} mt-1`} /></label>}
+        {registro && <label className="block">Edad<input type="number" required min="1" max="120" value={f.edad} onChange={set('edad')} className={`${campo} mt-1`} /></label>}
         <label className="block">Correo<input type="email" required value={f.email} onChange={set('email')} className={`${campo} mt-1`} /></label>
         <label className="block">Contraseña<input type="password" required value={f.password} onChange={set('password')} className={`${campo} mt-1`} /></label>
+        {registro && <label className="block">Confirmar contraseña<input type="password" required value={f.password2} onChange={set('password2')} className={`${campo} mt-1`} /></label>}
         {registro && (
           <>
             <div><p>¿Qué tipo de historias te gustan?</p><div className="mt-2 flex flex-wrap gap-2">{GENEROS.map((g) => <button type="button" key={g} onClick={() => alternar(g)} className={chip(f.generos.includes(g))}>{g}</button>)}</div></div>
@@ -186,9 +191,10 @@ export function Login() {
             <p className="text-xs text-tinta/50">El asistente IA usa esto para recomendarte obras.</p>
           </>
         )}
+        {error && <p role="alert" className="text-sm text-coral">{error}</p>}
         <Boton type="submit" className="w-full">{registro ? 'Crear cuenta' : 'Entrar'}</Boton>
       </form>
-      <button onClick={() => setRegistro(!registro)} className="mt-5 text-sm text-violeta">{registro ? 'Ya tengo cuenta' : 'Crear una cuenta nueva'}</button>
+      <button onClick={() => { setRegistro(!registro); setError('') }} className="mt-5 text-sm text-violeta">{registro ? 'Ya tengo cuenta' : 'Crear una cuenta nueva'}</button>
       <p className="mt-6 text-xs text-tinta/50">Acceso de prueba: aún no hay backend, los datos quedan en tu navegador.</p>
     </section>
   )
