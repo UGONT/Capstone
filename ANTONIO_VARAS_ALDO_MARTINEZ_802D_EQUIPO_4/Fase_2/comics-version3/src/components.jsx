@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { campana, BRAND, CATALOGO_LECTURA, colorDe } from './data'
 import { useStore } from './store'
+import { enviarMensajeAlAgente } from './api'
 
 export const clp = (n) => '$' + n.toLocaleString('es-CL')
 
@@ -178,53 +179,111 @@ export function Creadores() {
 
 // Agente IA de prueba: responde con datos mock. Reemplaza `responder`
 // por una llamada a tu backend cuando esté listo (no pongas API keys en el front).
-function responder(texto, comics, user) {
-  const buscar = (t) => comics.filter((c) => c.generos.some((g) => t.toLowerCase().includes(g.toLowerCase())))
-  let obras = buscar(texto)
-  let intro = 'Por lo que cuentas, estas te pueden gustar:'
-  if (!obras.length && user?.generos?.length) { obras = buscar(user.generos.join(' ')); intro = 'Según los gustos de tu perfil, prueba con:' }
-  if (!obras.length) { obras = comics; intro = 'No pillé un género claro, pero parte por estas:' }
-  return { texto: intro, obras: obras.slice(0, 3) }
-}
-
 export function ChatIA({ abierto, setAbierto }) {
-  const [msgs, setMsgs] = useState([{ rol: 'ia', texto: 'Hola, cuéntame qué tipo de historias te gustan y te recomiendo obras.' }])
+  const [msgs, setMsgs] = useState([
+    { rol: 'ia', texto: 'Hola, cuéntame qué tipo de historias te gustan y te recomiendo obras.' },
+  ])
   const [input, setInput] = useState('')
+  const [cargando, setCargando] = useState(false)
   const nav = useNavigate()
-  const { comics, user } = useStore()
+  const { comics } = useStore()
 
-  const enviar = () => {
-    if (!input.trim()) return
-    setMsgs((m) => [...m, { rol: 'yo', texto: input }, { rol: 'ia', ...responder(input, comics, user) }])
+  const enviar = async () => {
+    const texto = input.trim()
+    if (!texto || cargando) return
+
+    setMsgs((m) => [...m, { rol: 'yo', texto }])
     setInput('')
+    setCargando(true)
+
+    try {
+      const respuesta = await enviarMensajeAlAgente(texto)
+      setMsgs((m) => [...m, { rol: 'ia', texto: respuesta }])
+    } catch (err) {
+      setMsgs((m) => [
+        ...m,
+        { rol: 'ia', texto: `Lo siento, hubo un problema: ${err.message}` },
+      ])
+    } finally {
+      setCargando(false)
+    }
   }
+
+  // Función para detectar menciones de cómics en la respuesta y mostrarlos como cards
+  const comicsMencionados = (texto) =>
+    comics.filter((c) => texto.toLowerCase().includes(c.titulo.toLowerCase())).slice(0, 3)
 
   return (
     <div className="fixed bottom-5 right-5 z-50">
       {abierto && (
         <div className="mb-3 flex h-[28rem] w-80 flex-col overflow-hidden rounded-3xl bg-white shadow-2xl shadow-tinta/25">
           <div className="bg-violeta px-5 py-4 text-white">Asistente IA</div>
+
           <div className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">
             {msgs.map((m, i) => (
               <div key={i} className={m.rol === 'yo' ? 'text-right' : ''}>
-                <p className={`inline-block max-w-[85%] rounded-2xl px-4 py-2.5 text-left ${m.rol === 'yo' ? 'bg-lima' : 'bg-crema'}`}>{m.texto}</p>
-                {m.obras?.map((o) => (
-                  <div key={o.id} onClick={() => nav('/comic/' + o.id)} className="mt-2 flex cursor-pointer items-center gap-3 rounded-xl border border-tinta/10 p-2">
-                    <Portada bg={o.bg} img={o.img} titulo={o.titulo} className="size-12 shrink-0 rounded-lg" />
-                    <div><p>{o.titulo}</p><p className="text-xs text-tinta/50">{o.generos[0]} · {o.autor}</p></div>
-                  </div>
-                ))}
+                <p
+                  className={`inline-block max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-left ${
+                    m.rol === 'yo' ? 'bg-lima' : 'bg-crema'
+                  }`}
+                >
+                  {m.texto}
+                </p>
+                {m.rol === 'ia' &&
+                  comicsMencionados(m.texto).map((o) => (
+                    <div
+                      key={o.id}
+                      onClick={() => nav('/comic/' + o.id)}
+                      className="mt-2 flex cursor-pointer items-center gap-3 rounded-xl border border-tinta/10 p-2"
+                    >
+                      <Portada
+                        bg={o.bg}
+                        img={o.img}
+                        titulo={o.titulo}
+                        className="size-12 shrink-0 rounded-lg"
+                      />
+                      <div>
+                        <p>{o.titulo}</p>
+                        <p className="text-xs text-tinta/50">
+                          {o.generos[0] || ''} · {o.autor}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
               </div>
             ))}
+            {cargando && (
+              <div>
+                <p className="inline-block rounded-2xl bg-crema px-4 py-2.5 italic text-tinta/50">
+                  Pensando…
+                </p>
+              </div>
+            )}
           </div>
+
           <div className="flex gap-2 border-t border-tinta/10 p-3">
-            <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && enviar()}
-              placeholder="Ej: ciencia ficción con ritmo lento" className="min-w-0 flex-1 rounded-full bg-crema px-4 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violeta" />
-            <button onClick={enviar} className="rounded-full bg-violeta px-4 text-white" aria-label="Enviar">↗</button>
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && enviar()}
+              placeholder="Ej: ciencia ficción con ritmo lento"
+              className="min-w-0 flex-1 rounded-full bg-crema px-4 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violeta"
+            />
+            <button
+              onClick={enviar}
+              disabled={cargando}
+              className="rounded-full bg-violeta px-4 text-white disabled:opacity-50"
+              aria-label="Enviar"
+            >
+              ↗
+            </button>
           </div>
         </div>
       )}
-      <button onClick={() => setAbierto(!abierto)} className="ml-auto block rounded-full bg-tinta px-6 py-3.5 text-white shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violeta">
+      <button
+        onClick={() => setAbierto(!abierto)}
+        className="ml-auto block rounded-full bg-tinta px-6 py-3.5 text-white shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violeta"
+      >
         {abierto ? 'Cerrar' : 'Pregúntale a la IA'}
       </button>
     </div>
