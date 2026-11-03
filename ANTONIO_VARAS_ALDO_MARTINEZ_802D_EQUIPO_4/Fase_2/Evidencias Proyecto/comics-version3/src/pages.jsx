@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-r
 import { Boton, ComicCard, Portada, SelectorComics, clp } from './components'
 import { GENEROS } from './data'
 import { useStore } from './store'
+import { registrarUsuario } from './api'
 
 const campo = 'w-full rounded-xl bg-white px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-violeta'
 const chip = (on) => `rounded-full px-4 py-2 text-sm transition-colors ${on ? 'bg-violeta text-white' : 'bg-white hover:bg-violeta/15'}`
@@ -163,39 +164,194 @@ export function Login() {
   const [params] = useSearchParams()
   const [registro, setRegistro] = useState(params.get('modo') === 'registro')
   const [error, setError] = useState('')
+  const [cargando, setCargando] = useState(false)
   const { login } = useStore()
   const nav = useNavigate()
-  const [f, setF] = useState({ nombre: '', email: '', password: '', password2: '', edad: '', leidos: [], generos: [] })
+  const [f, setF] = useState({
+    nombre: '', email: '', password: '', password2: '',
+    edad: '', leidos: [], generos: [],
+  })
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
-  const alternar = (g) => setF({ ...f, generos: f.generos.includes(g) ? f.generos.filter((x) => x !== g) : [...f.generos, g] })
-  const enviar = (e) => {
+  const alternar = (g) =>
+    setF({
+      ...f,
+      generos: f.generos.includes(g)
+        ? f.generos.filter((x) => x !== g)
+        : [...f.generos, g],
+    })
+
+  const enviar = async (e) => {
     e.preventDefault()
-    if (registro && f.password !== f.password2) return setError('Las contraseñas no coinciden')
-    login({ email: f.email, nombre: f.nombre || f.email.split('@')[0], edad: Number(f.edad) || null, leidos: f.leidos, generos: f.generos }, registro)
-    nav('/explorar')
+    setError('')
+
+    if (registro && f.password !== f.password2) {
+      return setError('Las contraseñas no coinciden')
+    }
+
+    setCargando(true)
+
+    try {
+      if (registro) {
+        // 1) Registro → devuelve tokens y usuario
+        await registrarUsuario({
+          email: f.email,
+          password: f.password,
+          nickname: f.nombre,
+          edad: Number(f.edad) || null,
+          es_creador: false,
+          gustos: [],       // ⚠️ ver nota abajo
+          comics_leidos: [],
+        })
+        // 2) Restaurar user en el store desde /me
+        //    (registrarUsuario ya guardó tokens; fetchMe los usa)
+        //    El store lo hará solo, pero para asegurar recargamos:
+        window.location.href = '/explorar'
+        return
+      } else {
+        // Login real
+        await login(f.email, f.password)
+        nav('/explorar')
+      }
+    } catch (err) {
+      let mensaje = 'Error desconocido'
+      if (err.errores) {
+        if (typeof err.errores === 'object' && !Array.isArray(err.errores)) {
+          mensaje = Object.entries(err.errores)
+            .map(([campo, msgs]) =>
+              `${campo}: ${Array.isArray(msgs) ? msgs.join(' ') : msgs}`
+            )
+            .join(' · ')
+        } else {
+          mensaje = String(err.errores)
+        }
+      } else if (err.message) {
+        mensaje = err.message
+      }
+      setError(mensaje)
+    } finally {
+      setCargando(false)
+    }
   }
 
   return (
     <section className={`mx-auto px-6 pb-24 ${registro ? 'max-w-3xl' : 'max-w-md'}`}>
-      <h1 className="text-4xl font-light">{registro ? 'Crea tu cuenta' : 'Inicia sesión'}</h1>
+      <h1 className="text-4xl font-light">
+        {registro ? 'Crea tu cuenta' : 'Inicia sesión'}
+      </h1>
       <form onSubmit={enviar} className="mt-8 space-y-5">
-        {registro && <label className="block">Nombre<input required value={f.nombre} onChange={set('nombre')} className={`${campo} mt-1`} /></label>}
-        {registro && <label className="block">Edad<input type="number" required min="1" max="120" value={f.edad} onChange={set('edad')} className={`${campo} mt-1`} /></label>}
-        <label className="block">Correo<input type="email" required value={f.email} onChange={set('email')} className={`${campo} mt-1`} /></label>
-        <label className="block">Contraseña<input type="password" required value={f.password} onChange={set('password')} className={`${campo} mt-1`} /></label>
-        {registro && <label className="block">Confirmar contraseña<input type="password" required value={f.password2} onChange={set('password2')} className={`${campo} mt-1`} /></label>}
+        {registro && (
+          <label className="block">
+            Nombre
+            <input
+              required
+              value={f.nombre}
+              onChange={set('nombre')}
+              className={`${campo} mt-1`}
+            />
+          </label>
+        )}
+        {registro && (
+          <label className="block">
+            Edad
+            <input
+              type="number"
+              required
+              min="1"
+              max="120"
+              value={f.edad}
+              onChange={set('edad')}
+              className={`${campo} mt-1`}
+            />
+          </label>
+        )}
+        <label className="block">
+          Correo
+          <input
+            type="email"
+            required
+            value={f.email}
+            onChange={set('email')}
+            className={`${campo} mt-1`}
+          />
+        </label>
+        <label className="block">
+          Contraseña
+          <input
+            type="password"
+            required
+            value={f.password}
+            onChange={set('password')}
+            className={`${campo} mt-1`}
+          />
+        </label>
+        {registro && (
+          <label className="block">
+            Confirmar contraseña
+            <input
+              type="password"
+              required
+              value={f.password2}
+              onChange={set('password2')}
+              className={`${campo} mt-1`}
+            />
+          </label>
+        )}
         {registro && (
           <>
-            <div><p>¿Qué tipo de historias te gustan?</p><div className="mt-2 flex flex-wrap gap-2">{GENEROS.map((g) => <button type="button" key={g} onClick={() => alternar(g)} className={chip(f.generos.includes(g))}>{g}</button>)}</div></div>
-            <div><p>Cómics que ya leíste</p><SelectorComics seleccion={f.leidos} onChange={(leidos) => setF({ ...f, leidos })} /></div>
-            <p className="text-xs text-tinta/50">El asistente IA usa esto para recomendarte obras.</p>
+            <div>
+              <p>¿Qué tipo de historias te gustan?</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {GENEROS.map((g) => (
+                  <button
+                    type="button"
+                    key={g}
+                    onClick={() => alternar(g)}
+                    className={chip(f.generos.includes(g))}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p>Cómics que ya leíste</p>
+              <SelectorComics
+                seleccion={f.leidos}
+                onChange={(leidos) => setF({ ...f, leidos })}
+              />
+            </div>
+            <p className="text-xs text-tinta/50">
+              El asistente IA usa esto para recomendarte obras.
+            </p>
           </>
         )}
-        {error && <p role="alert" className="text-sm text-coral">{error}</p>}
-        <Boton type="submit" className="w-full">{registro ? 'Crear cuenta' : 'Entrar'}</Boton>
+        {error && (
+          <p role="alert" className="text-sm text-coral">
+            {error}
+          </p>
+        )}
+        <Boton type="submit" className="w-full" disabled={cargando}>
+          {cargando
+            ? 'Procesando…'
+            : registro
+            ? 'Crear cuenta'
+            : 'Entrar'}
+        </Boton>
       </form>
-      <button onClick={() => { setRegistro(!registro); setError('') }} className="mt-5 text-sm text-violeta">{registro ? 'Ya tengo cuenta' : 'Crear una cuenta nueva'}</button>
-      <p className="mt-6 text-xs text-tinta/50">Acceso de prueba: aún no hay backend, los datos quedan en tu navegador.</p>
+      <button
+        onClick={() => {
+          setRegistro(!registro)
+          setError('')
+        }}
+        className="mt-5 text-sm text-violeta"
+      >
+        {registro ? 'Ya tengo cuenta' : 'Crear una cuenta nueva'}
+      </button>
+      <p className="mt-6 text-xs text-tinta/50">
+        {registro
+          ? 'Crea tu cuenta real para guardar tus gustos.'
+          : 'Acceso de prueba: aún no hay backend, los datos quedan en tu navegador.'}
+      </p>
     </section>
   )
 }
@@ -229,3 +385,6 @@ export function Perfil() {
     </section>
   )
 }
+
+
+

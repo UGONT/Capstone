@@ -1,6 +1,8 @@
 # comics/serializers.py
 from rest_framework import serializers
-from .models import Comic, ComicAutor, Etiqueta, ComicExterno
+from .models import Perfil, Comic, ComicAutor, Etiqueta, ComicExterno
+
+from django.contrib.auth.models import User
 
 class ComicExternoSerializer(serializers.ModelSerializer):
     class Meta:
@@ -84,3 +86,78 @@ class ComicSerializer(serializers.ModelSerializer):
             }
             for ce in obj.etiquetas.select_related('etiqueta').all()
         ]
+        
+        
+class RegistroSerializer(serializers.Serializer):
+    # Campos del User
+    username = serializers.CharField(max_length=150, required=False)
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, min_length=8)
+
+    # Campos del Perfil
+    nickname = serializers.CharField(max_length=50)
+    edad = serializers.IntegerField(
+        required=False, allow_null=True, min_value=1, max_value=120
+    )
+    es_creador = serializers.BooleanField(default=False)
+
+    # Relaciones (IDs)
+    gustos = serializers.PrimaryKeyRelatedField(
+        queryset=Etiqueta.objects.all(), many=True, required=False
+    )
+    comics_leidos = serializers.PrimaryKeyRelatedField(
+        queryset=ComicExterno.objects.all(), many=True, required=False
+    )
+
+    def validate_username(self, value):
+        if value and User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("Este nombre de usuario ya está en uso.")
+        return value
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("Este correo ya está registrado.")
+        return value
+
+    def validate_nickname(self, value):
+        if Perfil.objects.filter(nickname=value).exists():
+            raise serializers.ValidationError("Este nickname ya está en uso.")
+        return value
+
+    def create(self, validated_data):
+        # Extraer UNA SOLA VEZ los campos que no van al modelo directamente
+        gustos = validated_data.pop('gustos', [])
+        comics_leidos = validated_data.pop('comics_leidos', [])
+        password = validated_data.pop('password')   
+
+        # Si no viene username, usar el email
+        username = validated_data.get('username') or validated_data['email']
+
+        # 1. Crear el User
+        user = User.objects.create_user(
+            username=username,
+            email=validated_data['email'],
+            password=password,                     
+        )
+
+        # 2. Crear/actualizar el Perfil (update_or_create por si hay señal)
+        perfil, _ = Perfil.objects.update_or_create(
+            usuario=user,
+            defaults={
+                'nickname': validated_data['nickname'],
+                'edad': validated_data.get('edad'),
+                'es_creador': validated_data.get('es_creador', False),
+            },
+        )
+
+        # 3. Asignar relaciones M2M
+        if gustos:
+            perfil.gustos.set(gustos)
+        if comics_leidos:
+            perfil.comics_leidos.set(comics_leidos)
+
+        return user
+    
+class LoginSerializer(serializers.Serializer):
+    email = serializers.CharField()   # acepta email o username
+    password = serializers.CharField(write_only=True)

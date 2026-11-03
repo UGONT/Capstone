@@ -13,6 +13,7 @@ import os
 
 from pathlib import Path
 from dotenv import load_dotenv
+import datetime
 
 load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -48,11 +49,32 @@ INSTALLED_APPS = [
     # Librerías de terceros
     'rest_framework',
     'corsheaders',
+    'rest_framework_simplejwt',
     
     # Mis Apps
     'comics',
     'assistant',
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': datetime.timedelta(hours=1),
+    'REFRESH_TOKEN_LIFETIME': datetime.timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': False,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+AUTHENTICATION_BACKENDS = [
+    'comics.auth_backend.EmailOrUsernameBackend',
+    'django.contrib.auth.backends.ModelBackend',  # fallback por si acaso
+]
+
+
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',

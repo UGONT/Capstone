@@ -1,19 +1,11 @@
 // src/store.jsx
 import { createContext, useContext, useEffect, useState } from 'react'
-import { fetchComics } from './api'
+import { fetchComics, fetchMe, loginApi, logoutApi } from './api'
 import { setCampana, colorDe } from './data'
 
 const Ctx = createContext()
 export const useStore = () => useContext(Ctx)
 
-const cargar = (k, d) => {
-  try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d }
-}
-const guardar = (k, v) => {
-  try { localStorage.setItem(k, JSON.stringify(v)) } catch { /* sin espacio */ }
-}
-
-// Mapea el estado del back a la etiqueta que usa el front
 const ESTADO_LABEL = {
   en_campana: 'En campaña',
   publicado: 'Publicado',
@@ -21,7 +13,6 @@ const ESTADO_LABEL = {
   cancelado: 'Cancelado',
 }
 
-// Normaliza un cómic del backend al formato que espera el front
 function normalizar(c) {
   return {
     id: c.id,
@@ -32,7 +23,7 @@ function normalizar(c) {
     etiquetas: c.etiquetas || [],
     descripcion: c.descripcion || '',
     img: c.img || '',
-    bg: colorDe(c.titulo),            // degradado derivado del título
+    bg: colorDe(c.titulo),
     recaudado: c.recaudado || 0,
     meta: c.meta || 0,
     apoyos: c.apoyos ?? 0,
@@ -48,26 +39,32 @@ function normalizar(c) {
 }
 
 export function StoreProvider({ children }) {
-  const [user, setUser] = useState(() => cargar('vi_user', null))
+  const [user, setUser] = useState(null)
+  const [cargandoUser, setCargandoUser] = useState(true)
   const [comics, setComics] = useState([])
-  const [cargando, setCargando] = useState(true)
+  const [cargandoComics, setCargandoComics] = useState(true)
   const [error, setError] = useState(null)
-  const [apoyos, setApoyos] = useState(() => cargar('vi_apoyos', {}))
+  const [apoyos, setApoyos] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('vi_apoyos')) ?? {} } catch { return {} }
+  })
 
-  // Cargar cómics desde el backend
+  // Restaurar usuario desde token al cargar
   useEffect(() => {
-    let activo = true
+    fetchMe()
+      .then((data) => {
+        if (data) setUser(data)
+        setCargandoUser(false)
+      })
+      .catch(() => setCargandoUser(false))
+  }, [])
+
+  // Cargar cómics
+  useEffect(() => {
     fetchComics()
       .then((data) => {
-        if (!activo) return
         const lista = data.map(normalizar)
         setComics(lista)
-
-        // Elegir el primer cómic en campaña como destacado
-        const destacado =
-          lista.find((c) => c.estado === 'En campaña') ||
-          lista[0] || null
-
+        const destacado = lista.find((c) => c.estado === 'En campaña') || lista[0]
         if (destacado) {
           setCampana({
             titulo: destacado.titulo,
@@ -81,35 +78,34 @@ export function StoreProvider({ children }) {
             img: destacado.img,
           })
         }
-        setCargando(false)
+        setCargandoComics(false)
       })
       .catch((err) => {
-        if (!activo) return
-        console.error('Error cargando cómics:', err)
         setError(err)
-        setCargando(false)
+        setCargandoComics(false)
       })
-    return () => { activo = false }
   }, [])
 
-  useEffect(() => guardar('vi_user', user), [user])
-  useEffect(() => guardar('vi_apoyos', apoyos), [apoyos])
+  useEffect(() => {
+    try { localStorage.setItem('vi_apoyos', JSON.stringify(apoyos)) } catch {}
+  }, [apoyos])
 
-  const login = (d, registro) => {
-    const perfiles = cargar('vi_perfiles', {})
-    if (registro || !perfiles[d.email]) perfiles[d.email] = d
-    guardar('vi_perfiles', perfiles)
-    setUser(perfiles[d.email])
+  // 🔐 Login real
+  const login = async (email, password) => {
+    const usuario = await loginApi(email, password)
+    setUser(usuario)
+    return usuario
   }
 
-  const logout = () => setUser(null)
+  // 🔓 Logout real
+  const logout = () => {
+    logoutApi()
+    setUser(null)
+  }
 
+  // Actualizar perfil (por ahora solo local — después endpoint)
   const actualizarPerfil = (parcial) => {
-    const nuevo = { ...user, ...parcial }
-    setUser(nuevo)
-    const perfiles = cargar('vi_perfiles', {})
-    perfiles[nuevo.email] = nuevo
-    guardar('vi_perfiles', perfiles)
+    setUser((prev) => ({ ...prev, ...parcial }))
   }
 
   const addComic = (c) => {
@@ -117,15 +113,11 @@ export function StoreProvider({ children }) {
     setComics((p) => [
       {
         bg: 'from-violet-500 to-lime-300',
-        capitulos: [],
-        avance: [],
-        recaudado: 0,
-        apoyos: 0,
-        estado: 'En campaña',
-        ...c,
-        id,
-        creador: user.email,
-        autor: c.autor?.trim() || user.nombre,
+        capitulos: [], avance: [],
+        recaudado: 0, apoyos: 0, estado: 'En campaña',
+        ...c, id,
+        creador: user?.email || null,
+        autor: c.autor?.trim() || user?.nombre || 'Anónimo',
       },
       ...p,
     ])
@@ -171,7 +163,8 @@ export function StoreProvider({ children }) {
   return (
     <Ctx.Provider
       value={{
-        user, comics, cargando, error,
+        user, cargandoUser,
+        comics, cargandoComics, error,
         login, logout, actualizarPerfil,
         addComic, aporteDe, apoyar, addCapitulo,
       }}
