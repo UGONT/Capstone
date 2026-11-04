@@ -151,3 +151,9 @@ export async function enviarMensajeAlAgente(mensaje) {
   const data = await res.json()
   return data.respuesta
 }
+
+export async function fetchEtiquetas() {
+  const res = await fetch(`${API_URL}/etiquetas/`)
+  if (!res.ok) throw new Error(`Error ${res.status} al cargar etiquetas`)
+  return res.json()
+}

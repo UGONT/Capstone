@@ -102,11 +102,11 @@ class RegistroSerializer(serializers.Serializer):
     es_creador = serializers.BooleanField(default=False)
 
     # Relaciones (IDs)
-    gustos = serializers.PrimaryKeyRelatedField(
-        queryset=Etiqueta.objects.all(), many=True, required=False
+    gustos = serializers.ListField(
+        child=serializers.CharField(), required=False
     )
-    comics_leidos = serializers.PrimaryKeyRelatedField(
-        queryset=ComicExterno.objects.all(), many=True, required=False
+    comics_leidos = serializers.ListField(
+        child=serializers.CharField(), required=False
     )
 
     def validate_username(self, value):
@@ -126,9 +126,9 @@ class RegistroSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         # Extraer UNA SOLA VEZ los campos que no van al modelo directamente
-        gustos = validated_data.pop('gustos', [])
-        comics_leidos = validated_data.pop('comics_leidos', [])
-        password = validated_data.pop('password')   
+        nombres_gustos = validated_data.pop('gustos', [])
+        titulos_leidos = validated_data.pop('comics_leidos', [])
+        password = validated_data.pop('password')  
 
         # Si no viene username, usar el email
         username = validated_data.get('username') or validated_data['email']
@@ -150,11 +150,12 @@ class RegistroSerializer(serializers.Serializer):
             },
         )
 
-        # 3. Asignar relaciones M2M
-        if gustos:
-            perfil.gustos.set(gustos)
-        if comics_leidos:
-            perfil.comics_leidos.set(comics_leidos)
+        # 3. Mapear nombres → objetos (solo los que existan)
+        etiquetas = Etiqueta.objects.filter(nombre__in=nombres_gustos)
+        perfil.gustos.set(etiquetas)
+
+        comics_obj = ComicExterno.objects.filter(nombre__in=titulos_leidos)
+        perfil.comics_leidos.set(comics_obj)
 
         return user
     

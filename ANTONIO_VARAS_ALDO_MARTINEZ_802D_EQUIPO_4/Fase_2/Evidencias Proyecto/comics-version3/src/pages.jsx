@@ -10,16 +10,26 @@ const chip = (on) => `rounded-full px-4 py-2 text-sm transition-colors ${on ? 'b
 const leer = (f) => new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(f) })
 
 export function Explorar() {
-  const { comics } = useStore()
+  const { comics, etiquetas } = useStore()
   const [q, setQ] = useState('')
   const [g, setG] = useState('')
-  const lista = comics.filter((c) => (!g || c.generos.includes(g)) && c.titulo.toLowerCase().includes(q.toLowerCase()))
+
+  const lista = comics.filter(
+    (c) =>
+      (!g || c.generos.includes(g)) &&
+      c.titulo.toLowerCase().includes(q.toLowerCase())
+  )
+  
   return (
     <section className="mx-auto max-w-7xl px-6 pb-24 md:px-20">
       <h1 className="text-4xl font-light md:text-5xl">Explorar cómics</h1>
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por título" aria-label="Buscar por título" className={`${campo} mt-8 max-w-md`} />
       <div className="mt-4 flex flex-wrap gap-2">
-        {['', ...GENEROS].map((x) => <button key={x} onClick={() => setG(x)} className={chip(g === x)}>{x || 'Todos'}</button>)}
+        {['', ...etiquetas.map((e) => e.nombre)].map((x) => (
+          <button key={x} onClick={() => setG(x)} className={chip(g === x)}>
+            {x || 'Todos'}
+          </button>
+        ))}
       </div>
       {lista.length ? (
         <div className="mt-10 grid gap-8 sm:grid-cols-2 md:grid-cols-3">{lista.map((c) => <ComicCard key={c.id} c={c} />)}</div>
@@ -124,7 +134,7 @@ export function Detalle() {
 }
 
 export function Publicar() {
-  const { user, addComic } = useStore()
+  const { user, addComic, etiquetas  } = useStore()
   const nav = useNavigate()
   const [f, setF] = useState({ titulo: '', autor: '', descripcion: '', generos: [], meta: 5000, dias: 30, formato: 'Digital + Físico', img: '', avance: [] })
   if (!user) return <Navigate to="/login" replace />
@@ -139,8 +149,22 @@ export function Publicar() {
       <form onSubmit={enviar} className="mt-8 space-y-5">
         <label className="block">Título<input required value={f.titulo} onChange={set('titulo')} className={`${campo} mt-1`} /></label>
         <label className="block">Autor o autores<input value={f.autor} onChange={set('autor')} placeholder="Tu nombre, un seudónimo o varios separados por coma" className={`${campo} mt-1`} /><span className="text-xs text-tinta/50">Si lo dejas vacío se usa el nombre de tu cuenta.</span></label>
+        
         <label className="block">Descripción<textarea required rows={4} value={f.descripcion} onChange={set('descripcion')} className={`${campo} mt-1`} /></label>
-        <div><p>Géneros</p><div className="mt-2 flex flex-wrap gap-2">{GENEROS.map((g) => <button type="button" key={g} onClick={() => alternar(g)} className={chip(f.generos.includes(g))}>{g}</button>)}</div></div>
+        <p>Géneros</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {etiquetas.map((e) => (
+            <button
+              type="button"
+              key={e.id}
+              onClick={() => alternar(e.nombre)}
+              className={chip(f.generos.includes(e.nombre))}
+            >
+              {e.nombre}
+            </button>
+          ))}
+        
+        </div>
         <div className="grid gap-5 sm:grid-cols-3">
           <label className="block">Meta ($)<input type="number" min="1" required value={f.meta} onChange={set('meta')} className={`${campo} mt-1`} /></label>
           <label className="block">Días de campaña<input type="number" min="1" required value={f.dias} onChange={set('dias')} className={`${campo} mt-1`} /></label>
@@ -165,7 +189,7 @@ export function Login() {
   const [registro, setRegistro] = useState(params.get('modo') === 'registro')
   const [error, setError] = useState('')
   const [cargando, setCargando] = useState(false)
-  const { login } = useStore()
+  const { login, etiquetas } = useStore()
   const nav = useNavigate()
   const [f, setF] = useState({
     nombre: '', email: '', password: '', password2: '',
@@ -199,8 +223,8 @@ export function Login() {
           nickname: f.nombre,
           edad: Number(f.edad) || null,
           es_creador: false,
-          gustos: [],       // ⚠️ ver nota abajo
-          comics_leidos: [],
+          gustos: f.generos,      
+          comics_leidos: f.leidos,
         })
         // 2) Restaurar user en el store desde /me
         //    (registrarUsuario ya guardó tokens; fetchMe los usa)
@@ -301,14 +325,14 @@ export function Login() {
             <div>
               <p>¿Qué tipo de historias te gustan?</p>
               <div className="mt-2 flex flex-wrap gap-2">
-                {GENEROS.map((g) => (
+                {etiquetas.map((e) => (
                   <button
                     type="button"
-                    key={g}
-                    onClick={() => alternar(g)}
-                    className={chip(f.generos.includes(g))}
+                    key={e.id}
+                    onClick={() => alternar(e.nombre)}
+                    className={chip(f.generos.includes(e.nombre))}
                   >
-                    {g}
+                    {e.nombre}
                   </button>
                 ))}
               </div>
@@ -357,7 +381,7 @@ export function Login() {
 }
 
 export function Perfil() {
-  const { user, comics, aporteDe, actualizarPerfil } = useStore()
+  const { user, comics, etiquetas, aporteDe, actualizarPerfil } = useStore()
   if (!user) return <Navigate to="/login" replace />
   const generos = user.generos || []
   const apoyados = comics.filter((c) => aporteDe(c.id) > 0)
@@ -368,7 +392,17 @@ export function Perfil() {
       <p className="mt-2 text-tinta/60">{user.email}</p>
 
       <h2 className="mt-12 text-2xl font-light">Tus géneros</h2>
-      <div className="mt-3 flex flex-wrap gap-2">{GENEROS.map((g) => <button key={g} onClick={() => alternar(g)} className={chip(generos.includes(g))}>{g}</button>)}</div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {etiquetas.map((e) => (
+          <button
+            key={e.id}
+            onClick={() => alternar(e.nombre)}
+            className={chip(generos.includes(e.nombre))}
+          >
+            {e.nombre}
+          </button>
+        ))}
+      </div>
 
       <h2 className="mt-12 text-2xl font-light">Cómics que has leído</h2>
       <p className="mt-1 text-sm text-tinta/60">Agrega los que vayas leyendo. El asistente IA los usa para recomendarte.</p>

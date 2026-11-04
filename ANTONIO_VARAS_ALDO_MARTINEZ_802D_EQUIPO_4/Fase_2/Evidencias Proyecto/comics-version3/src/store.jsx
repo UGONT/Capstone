@@ -1,6 +1,6 @@
 // src/store.jsx
 import { createContext, useContext, useEffect, useState } from 'react'
-import { fetchComics, fetchMe, loginApi, logoutApi } from './api'
+import { fetchComics, fetchEtiquetas,fetchMe, loginApi, logoutApi } from './api'
 import { setCampana, colorDe } from './data'
 
 const Ctx = createContext()
@@ -47,6 +47,19 @@ export function StoreProvider({ children }) {
   const [apoyos, setApoyos] = useState(() => {
     try { return JSON.parse(localStorage.getItem('vi_apoyos')) ?? {} } catch { return {} }
   })
+
+  const [etiquetas, setEtiquetas] = useState([])
+  const [cargandoEtiquetas, setCargandoEtiquetas] = useState(true)
+
+  // Cargar etiquetas
+  useEffect(() => {
+    fetchEtiquetas()
+      .then((data) => {
+        setEtiquetas(data)
+        setCargandoEtiquetas(false)
+      })
+      .catch(() => setCargandoEtiquetas(false))
+  }, [])
 
   // Restaurar usuario desde token al cargar
   useEffect(() => {
@@ -165,6 +178,7 @@ export function StoreProvider({ children }) {
       value={{
         user, cargandoUser,
         comics, cargandoComics, error,
+        etiquetas, cargandoEtiquetas,
         login, logout, actualizarPerfil,
         addComic, aporteDe, apoyar, addCapitulo,
       }}
