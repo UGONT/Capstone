@@ -37,7 +37,7 @@ export function Navbar() {
       <nav className="hidden gap-9 text-[15px] md:flex">
         <Link to="/explorar" className="hover:text-violeta">Explorar</Link>
         <Link to="/explorar" className="hover:text-violeta">Campañas</Link>
-        <Link to="/publicar" className="hover:text-violeta">Para creadores</Link>
+        <Link to="/creadores" className="hover:text-violeta">Para creadores</Link>
       </nav>
       <div className="flex items-center gap-5">
         {user ? (
@@ -171,14 +171,12 @@ export function Creadores() {
             <li key={t} className="flex items-center gap-3"><span className="grid size-6 place-items-center rounded-full bg-tinta text-[11px] text-white">✓</span>{t}</li>
           ))}
         </ul>
-        <Boton to="/publicar" variante="oscuro" className="mt-8">Publica tu cómic</Boton>
+        <Boton to="/creadores" variante="oscuro" className="mt-8">Publica tu cómic</Boton>
       </div>
     </section>
   )
 }
 
-// Agente IA de prueba: responde con datos mock. Reemplaza `responder`
-// por una llamada a tu backend cuando esté listo (no pongas API keys en el front).
 export function ChatIA({ abierto, setAbierto }) {
   const [msgs, setMsgs] = useState([
     { rol: 'ia', texto: 'Hola, cuéntame qué tipo de historias te gustan y te recomiendo obras.' },
@@ -293,7 +291,12 @@ export function ChatIA({ abierto, setAbierto }) {
 export function Footer() {
   const cols = {
     Plataforma: [['Explorar', '/explorar'], ['Campañas', '/explorar'], ['Asistente IA', '/']],
-    Creadores: [['Publicar', '/publicar'], ['Financiamiento', '/publicar'], ['Recursos', '/publicar']],
+    Creadores: [
+      ['Panel', '/creadores'],          
+      ['Publicar', '/publicar'],
+      ['Financiamiento', '/publicar'],
+      ['Recursos', '/publicar'],
+    ],
     Comunidad: [['Manifiesto', '/'], ['Novedades', '/'], ['Contacto', '/']],
   }
   return (

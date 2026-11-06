@@ -133,52 +133,220 @@ export function Detalle() {
   )
 }
 
+
 export function Publicar() {
-  const { user, addComic, etiquetas  } = useStore()
+  const { user, addComic, etiquetas } = useStore()
   const nav = useNavigate()
-  const [f, setF] = useState({ titulo: '', autor: '', descripcion: '', generos: [], meta: 5000, dias: 30, formato: 'Digital + Físico', img: '', avance: [] })
+  const [enviando, setEnviando] = useState(false)
+
+  const [f, setF] = useState({
+    titulo: '',
+    autor: '',
+    descripcion: '',
+    numero_paginas: '',
+    generos: [],
+    meta: 5000,
+    dias: 30,
+    formato: 'Digital + Físico',
+    img: '',
+    avance: [],
+  })
+
   if (!user) return <Navigate to="/login" replace />
+
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
-  const alternar = (g) => setF({ ...f, generos: f.generos.includes(g) ? f.generos.filter((x) => x !== g) : [...f.generos, g] })
-  const enviar = (e) => { e.preventDefault(); nav('/comic/' + addComic({ ...f, meta: Number(f.meta), dias: Number(f.dias), generos: f.generos.length ? f.generos : ['Aventura'] })) }
+  const alternar = (g) =>
+    setF({
+      ...f,
+      generos: f.generos.includes(g)
+        ? f.generos.filter((x) => x !== g)
+        : [...f.generos, g],
+    })
+
+  const enviar = (e) => {
+    e.preventDefault()
+    setEnviando(true)
+    const nuevoId = addComic({
+      ...f,
+      meta: Number(f.meta),
+      dias: Number(f.dias),
+      numero_paginas: Number(f.numero_paginas) || 0,
+      generos: f.generos.length ? f.generos : ['Aventura'],
+    })
+    nav('/comic/' + nuevoId)
+  }
 
   return (
     <section className="mx-auto max-w-2xl px-6 pb-24">
-      <h1 className="text-4xl font-light md:text-5xl">Publica tu cómic</h1>
-      <p className="mt-3 text-tinta/60">Sube la portada y un avance, define tu meta y los lectores podrán apoyarte.</p>
-      <form onSubmit={enviar} className="mt-8 space-y-5">
-        <label className="block">Título<input required value={f.titulo} onChange={set('titulo')} className={`${campo} mt-1`} /></label>
-        <label className="block">Autor o autores<input value={f.autor} onChange={set('autor')} placeholder="Tu nombre, un seudónimo o varios separados por coma" className={`${campo} mt-1`} /><span className="text-xs text-tinta/50">Si lo dejas vacío se usa el nombre de tu cuenta.</span></label>
-        
-        <label className="block">Descripción<textarea required rows={4} value={f.descripcion} onChange={set('descripcion')} className={`${campo} mt-1`} /></label>
-        <p>Géneros</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {etiquetas.map((e) => (
-            <button
-              type="button"
-              key={e.id}
-              onClick={() => alternar(e.nombre)}
-              className={chip(f.generos.includes(e.nombre))}
-            >
-              {e.nombre}
-            </button>
-          ))}
-        
+      <Link to="/creadores" className="text-sm text-violeta">
+        ← Volver al panel
+      </Link>
+
+      <h1 className="mt-4 text-4xl font-light md:text-5xl">Publica tu cómic</h1>
+      <p className="mt-3 text-tinta/60">
+        Completa los datos. Después podrás agregar capítulos y niveles de recompensa.
+      </p>
+
+      <form onSubmit={enviar} className="mt-8 space-y-6">
+        {/* Título */}
+        <label className="block">
+          Título
+          <input
+            required
+            value={f.titulo}
+            onChange={set('titulo')}
+            className={`${campo} mt-1`}
+            placeholder="Ej: La ciudad sumergida"
+          />
+        </label>
+
+        {/* Autor */}
+        <label className="block">
+          Autor o autores
+          <input
+            value={f.autor}
+            onChange={set('autor')}
+            placeholder="Tu nombre, un seudónimo o varios separados por coma"
+            className={`${campo} mt-1`}
+          />
+          <span className="text-xs text-tinta/50">
+            Si lo dejas vacío se usa el nombre de tu cuenta.
+          </span>
+        </label>
+
+        {/* Descripción */}
+        <label className="block">
+          Descripción / Sinopsis
+          <textarea
+            required
+            rows={4}
+            value={f.descripcion}
+            onChange={set('descripcion')}
+            className={`${campo} mt-1`}
+            placeholder="Cuéntale a los lectores de qué va tu historia…"
+          />
+        </label>
+
+        {/* Número de páginas */}
+        <label className="block">
+          Número de páginas
+          <input
+            type="number"
+            min="1"
+            value={f.numero_paginas}
+            onChange={set('numero_paginas')}
+            className={`${campo} mt-1`}
+            placeholder="Ej: 120"
+          />
+        </label>
+
+        {/* Géneros */}
+        <div>
+          <p>Géneros</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {etiquetas.map((e) => (
+              <button
+                type="button"
+                key={e.id}
+                onClick={() => alternar(e.nombre)}
+                className={chip(f.generos.includes(e.nombre))}
+              >
+                {e.nombre}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* Meta, días, formato */}
         <div className="grid gap-5 sm:grid-cols-3">
-          <label className="block">Meta ($)<input type="number" min="1" required value={f.meta} onChange={set('meta')} className={`${campo} mt-1`} /></label>
-          <label className="block">Días de campaña<input type="number" min="1" required value={f.dias} onChange={set('dias')} className={`${campo} mt-1`} /></label>
-          <label className="block">Formato
-            <select value={f.formato} onChange={set('formato')} className={`${campo} mt-1`}><option>Digital + Físico</option><option>Solo digital</option><option>Solo físico</option></select>
+          <label className="block">
+            Meta (CLP)
+            <input
+              type="number"
+              min="1"
+              required
+              value={f.meta}
+              onChange={set('meta')}
+              className={`${campo} mt-1`}
+            />
+          </label>
+          <label className="block">
+            Días de campaña
+            <input
+              type="number"
+              min="1"
+              required
+              value={f.dias}
+              onChange={set('dias')}
+              className={`${campo} mt-1`}
+            />
+          </label>
+          <label className="block">
+            Formato
+            <select
+              value={f.formato}
+              onChange={set('formato')}
+              className={`${campo} mt-1`}
+            >
+              <option>Digital + Físico</option>
+              <option>Solo digital</option>
+              <option>Solo físico</option>
+            </select>
           </label>
         </div>
-        <label className="block">Portada
-          <input type="file" accept="image/*" onChange={async (e) => e.target.files[0] && setF({ ...f, img: await leer(e.target.files[0]) })} className="mt-1 block text-sm" />
+
+        {/* Portada */}
+        <label className="block">
+          Portada
+          <input
+            type="file"
+            accept="image/*"
+            onChange={async (e) =>
+              e.target.files[0] &&
+              setF({ ...f, img: await leer(e.target.files[0]) })
+            }
+            className="mt-1 block text-sm"
+          />
+          {f.img && (
+            <img
+              src={f.img}
+              alt="Preview portada"
+              className="mt-3 h-40 rounded-lg object-cover"
+            />
+          )}
         </label>
-        <label className="block">Páginas de avance (solo las ven quienes apoyan)
-          <input type="file" accept="image/*" multiple onChange={async (e) => setF({ ...f, avance: await Promise.all([...e.target.files].map(leer)) })} className="mt-1 block text-sm" />
+
+        {/* Avance */}
+        <label className="block">
+          Páginas de avance (solo las ven quienes apoyan)
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={async (e) =>
+              setF({
+                ...f,
+                avance: await Promise.all([...e.target.files].map(leer)),
+              })
+            }
+            className="mt-1 block text-sm"
+          />
+          {f.avance.length > 0 && (
+            <p className="mt-2 text-sm text-tinta/60">
+              {f.avance.length} página(s) cargada(s)
+            </p>
+          )}
         </label>
-        <Boton type="submit">Publicar cómic</Boton>
+
+        {/* Submit */}
+        <div className="flex flex-wrap items-center gap-3 pt-2">
+          <Boton type="submit" disabled={enviando}>
+            {enviando ? 'Publicando…' : 'Publicar cómic'}
+          </Boton>
+          <Link to="/creadores" className="text-sm text-tinta/60 hover:text-violeta">
+            Cancelar
+          </Link>
+        </div>
       </form>
     </section>
   )
@@ -379,6 +547,97 @@ export function Login() {
     </section>
   )
 }
+
+
+export function PanelCreador() {
+  const { user, comics, cargandoComics } = useStore()
+
+  if (!user) return <Navigate to="/login" replace />
+  if (cargandoComics) {
+    return <p className="mx-auto max-w-7xl px-6 py-24 md:px-20">Cargando…</p>
+  }
+
+  // Cómics del usuario: por creador local (front) o por autores del back
+  const misComics = comics.filter((c) => {
+    if (c.creador && c.creador === user.email) return true
+    if (c.autores?.some((a) => a.username === user.username)) return true
+    return false
+  })
+
+  // ───────────────────────────── EMPTY STATE ─────────────────────────────
+  if (!misComics.length) {
+    return (
+      <section className="mx-auto max-w-4xl px-6 pb-24 md:px-20">
+        <div className="mt-16 rounded-3xl bg-white p-10 text-center shadow-xl shadow-tinta/10 md:p-16">
+          <div className="mx-auto grid size-20 place-items-center rounded-2xl bg-lima text-3xl text-tinta">
+            ✎
+          </div>
+          <h1 className="mt-8 text-4xl font-light md:text-5xl">
+            Aún no has publicado ningún cómic
+          </h1>
+          <p className="mx-auto mt-4 max-w-lg text-tinta/60">
+            Es el momento perfecto para compartir tu primera historia. Publica tu primer
+            capítulo, define tu meta y deja que los lectores te descubran.
+          </p>
+          <div className="mt-10 flex flex-wrap justify-center gap-3">
+            <Boton to="/publicar">Publicar mi primer cómic</Boton>
+            <Boton variante="blanco" to="/explorar">Explorar otros cómics</Boton>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  // ───────────────────────────── DASHBOARD ─────────────────────────────
+  const totalRecaudado = misComics.reduce((s, c) => s + c.recaudado, 0)
+  const totalApoyos = misComics.reduce((s, c) => s + c.apoyos, 0)
+  const activos = misComics.filter((c) => c.estado === 'En campaña').length
+
+  return (
+    <section className="mx-auto max-w-7xl px-6 pb-24 md:px-20">
+      {/* Header */}
+      <div className="flex flex-wrap items-end justify-between gap-6">
+        <div>
+          <p className="text-xs text-coral">Panel de creador</p>
+          <h1 className="mt-2 text-4xl font-light md:text-5xl">Mis cómics</h1>
+          <p className="mt-2 text-tinta/60">
+            {misComics.length} cómic{misComics.length > 1 ? 's' : ''} publicado
+            {misComics.length > 1 ? 's' : ''}
+          </p>
+        </div>
+        <Boton to="/publicar">Publicar nuevo cómic</Boton>
+      </div>
+
+      {/* Stats globales */}
+      <div className="mt-10 grid gap-4 sm:grid-cols-3">
+        <div className="rounded-2xl bg-white p-6 shadow-lg shadow-tinta/5">
+          <p className="text-sm text-tinta/50">Total recaudado</p>
+          <p className="mt-2 text-3xl font-light">{clp(totalRecaudado)}</p>
+        </div>
+        <div className="rounded-2xl bg-white p-6 shadow-lg shadow-tinta/5">
+          <p className="text-sm text-tinta/50">Personas apoyando</p>
+          <p className="mt-2 text-3xl font-light">{totalApoyos}</p>
+        </div>
+        <div className="rounded-2xl bg-white p-6 shadow-lg shadow-tinta/5">
+          <p className="text-sm text-tinta/50">Cómics activos</p>
+          <p className="mt-2 text-3xl font-light">{activos}</p>
+        </div>
+      </div>
+
+      {/* Lista */}
+      <h2 className="mt-16 text-2xl font-light">Tus publicaciones</h2>
+      <div className="mt-6 grid gap-8 sm:grid-cols-2 md:grid-cols-3">
+        {misComics.map((c) => (
+          <div key={c.id}>
+            <ComicCard c={c} />
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+
 
 export function Perfil() {
   const { user, comics, etiquetas, aporteDe, actualizarPerfil } = useStore()
