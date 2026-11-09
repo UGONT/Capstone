@@ -1,6 +1,6 @@
 # comics/serializers.py
 from rest_framework import serializers
-from .models import Perfil, Comic, ComicAutor, Etiqueta, ComicExterno
+from .models import Perfil, Comic, ComicAutor, Etiqueta, ComicExterno, ComicEtiqueta, Capitulo, NivelRecompensa
 
 from django.contrib.auth.models import User
 
@@ -29,6 +29,93 @@ class AutorSerializer(serializers.ModelSerializer):
         return obj.autor.username
 
 
+# =====================================================================
+# CREAR CÓMIC
+# =====================================================================
+
+class ComicCreateSerializer(serializers.ModelSerializer):
+    # El front envía nombres de etiquetas, no IDs
+    etiquetas = serializers.ListField(
+        child=serializers.CharField(), required=False, write_only=True
+    )
+    # Duración en días → se calcula fecha_fin
+    dias = serializers.IntegerField(required=False, write_only=True)
+
+    class Meta:
+        model = Comic
+        fields = [
+            'titulo', 'sinopsis', 'portada', 'numero_paginas',
+            'meta_recaudacion', 'estado', 'crowdfunding_activo',
+            'fecha_inicio', 'fecha_fin',
+            'etiquetas', 'dias',
+        ]
+        extra_kwargs = {
+            'portada': {'required': False},
+            'estado': {'required': False},
+            'fecha_inicio': {'required': False},
+            'fecha_fin': {'required': False},
+        }
+
+    def create(self, validated_data):
+        nombres_etiquetas = validated_data.pop('etiquetas', [])
+        dias = validated_data.pop('dias', None)
+        request = self.context.get('request')
+
+        # Calcular fecha_inicio y fecha_fin
+        from django.utils import timezone
+        from datetime import timedelta
+
+        if not validated_data.get('fecha_inicio'):
+            validated_data['fecha_inicio'] = timezone.now()
+        if dias and not validated_data.get('fecha_fin'):
+            validated_data['fecha_fin'] = validated_data['fecha_inicio'] + timedelta(days=dias)
+
+        # Estado por defecto si no viene
+        validated_data.setdefault('estado', Comic.Estado.EN_CAMPANA)
+        validated_data.setdefault('crowdfunding_activo', True)
+
+        # Crear el cómic
+        comic = Comic.objects.create(**validated_data)
+
+        # El usuario logueado queda como autor_principal
+        if request and request.user.is_authenticated:
+            ComicAutor.objects.create(
+                comic=comic,
+                autor=request.user,
+                rol=ComicAutor.Rol.AUTOR_PRINCIPAL,
+                orden=0,
+            )
+
+        # Asociar etiquetas (crear si no existen)
+        for nombre in nombres_etiquetas:
+            etiqueta, _ = Etiqueta.objects.get_or_create(nombre=nombre)
+            ComicEtiqueta.objects.get_or_create(comic=comic, etiqueta=etiqueta)
+
+        return comic
+
+
+# =====================================================================
+# CREAR CAPÍTULO
+# =====================================================================
+
+class CapituloCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Capitulo
+        fields = ['numero', 'titulo', 'contenido', 'fecha_publicacion', 'es_gratis']
+
+
+# =====================================================================
+# CREAR RECOMPENSA
+# =====================================================================
+
+class NivelRecompensaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NivelRecompensa
+        fields = ['id', 'titulo', 'descripcion', 'monto_minimo', 'stock', 'orden']
+
+
+
+
 class ComicSerializer(serializers.ModelSerializer):
     # Compatibilidad con el frontend actual
     descripcion = serializers.CharField(source='sinopsis')
@@ -38,9 +125,11 @@ class ComicSerializer(serializers.ModelSerializer):
 
     # Autores y etiquetas
     autores = AutorSerializer(many=True, read_only=True)
-    etiquetas = serializers.SerializerMethodField()      # 👈 CAMBIA
+    etiquetas = serializers.SerializerMethodField()     
     autor = serializers.SerializerMethodField()
     generos = serializers.SerializerMethodField()
+    capitulos = CapituloCreateSerializer(many=True, read_only=True)         
+    recompensas = NivelRecompensaSerializer(many=True, read_only=True) 
 
     class Meta:
         model = Comic
@@ -62,6 +151,8 @@ class ComicSerializer(serializers.ModelSerializer):
             'numero_paginas',
             'fecha_inicio',
             'fecha_fin',
+            'capitulos', 
+            'recompensas',
         ]
 
     def get_autor(self, obj):
@@ -162,3 +253,6 @@ class RegistroSerializer(serializers.Serializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.CharField()   # acepta email o username
     password = serializers.CharField(write_only=True)
+    
+    
+    

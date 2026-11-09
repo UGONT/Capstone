@@ -157,3 +157,67 @@ export async function fetchEtiquetas() {
   if (!res.ok) throw new Error(`Error ${res.status} al cargar etiquetas`)
   return res.json()
 }
+
+
+// =====================================================================
+// CREAR CÓMIC (con FormData por la portada)
+// =====================================================================
+
+export async function crearComic(datos, portadaFile = null, avanceFiles = []) {
+  const form = new FormData()
+
+  form.append('titulo', datos.titulo)
+  form.append('sinopsis', datos.descripcion)
+  form.append('numero_paginas', datos.numero_paginas || 0)
+  form.append('meta_recaudacion', datos.meta)
+  form.append('dias', datos.dias)
+  form.append('crowdfunding_activo', 'true')
+
+  // Etiquetas: DRF ListField con multipart acepta múltiples valores con la misma clave
+  datos.generos.forEach((nombre) => {
+    form.append('etiquetas', nombre)
+  })
+
+  if (portadaFile) {
+    form.append('portada', portadaFile)
+  }
+
+  const res = await fetchConAuth(`${API_URL}/comics/`, {
+    method: 'POST',
+    body: form,   
+  })
+
+  const data = await leerJSON(res)
+  if (!res.ok) throw { status: res.status, errores: data }
+  return data
+}
+
+// =====================================================================
+// CREAR CAPÍTULO
+// =====================================================================
+
+export async function crearCapitulo(comicId, datos) {
+  const res = await fetchConAuth(`${API_URL}/comics/${comicId}/capitulos/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(datos),
+  })
+  const data = await leerJSON(res)
+  if (!res.ok) throw { status: res.status, errores: data }
+  return data
+}
+
+// =====================================================================
+// CREAR RECOMPENSA
+// =====================================================================
+
+export async function crearRecompensa(comicId, datos) {
+  const res = await fetchConAuth(`${API_URL}/comics/${comicId}/recompensas/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(datos),
+  })
+  const data = await leerJSON(res)
+  if (!res.ok) throw { status: res.status, errores: data }
+  return data
+}

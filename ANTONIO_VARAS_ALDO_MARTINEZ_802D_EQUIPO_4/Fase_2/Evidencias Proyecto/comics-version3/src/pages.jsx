@@ -138,6 +138,7 @@ export function Publicar() {
   const { user, addComic, etiquetas } = useStore()
   const nav = useNavigate()
   const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState('')
 
   const [f, setF] = useState({
     titulo: '',
@@ -148,9 +149,11 @@ export function Publicar() {
     meta: 5000,
     dias: 30,
     formato: 'Digital + Físico',
-    img: '',
-    avance: [],
   })
+
+  // 👇 ahora guardamos los File reales
+  const [portadaFile, setPortadaFile] = useState(null)
+  const [portadaPreview, setPortadaPreview] = useState('')
 
   if (!user) return <Navigate to="/login" replace />
 
@@ -163,17 +166,41 @@ export function Publicar() {
         : [...f.generos, g],
     })
 
-  const enviar = (e) => {
+  const onPortada = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setPortadaFile(file)
+    setPortadaPreview(URL.createObjectURL(file))
+  }
+
+  const enviar = async (e) => {
     e.preventDefault()
+    setError('')
     setEnviando(true)
-    const nuevoId = addComic({
-      ...f,
-      meta: Number(f.meta),
-      dias: Number(f.dias),
-      numero_paginas: Number(f.numero_paginas) || 0,
-      generos: f.generos.length ? f.generos : ['Aventura'],
-    })
-    nav('/comic/' + nuevoId)
+
+    try {
+      const nuevoId = await addComic(
+        {
+          ...f,
+          meta: Number(f.meta),
+          dias: Number(f.dias),
+          numero_paginas: Number(f.numero_paginas) || 0,
+          generos: f.generos.length ? f.generos : ['Aventura'],
+        },
+        portadaFile,
+      )
+      nav('/comic/' + nuevoId)
+    } catch (err) {
+      const mensaje =
+        err.errores && typeof err.errores === 'object'
+          ? Object.entries(err.errores)
+              .map(([c, m]) => `${c}: ${Array.isArray(m) ? m.join(' ') : m}`)
+              .join(' · ')
+          : 'Error al publicar el cómic'
+      setError(mensaje)
+    } finally {
+      setEnviando(false)
+    }
   }
 
   return (
@@ -188,19 +215,11 @@ export function Publicar() {
       </p>
 
       <form onSubmit={enviar} className="mt-8 space-y-6">
-        {/* Título */}
         <label className="block">
           Título
-          <input
-            required
-            value={f.titulo}
-            onChange={set('titulo')}
-            className={`${campo} mt-1`}
-            placeholder="Ej: La ciudad sumergida"
-          />
+          <input required value={f.titulo} onChange={set('titulo')} className={`${campo} mt-1`} />
         </label>
 
-        {/* Autor */}
         <label className="block">
           Autor o autores
           <input
@@ -214,7 +233,6 @@ export function Publicar() {
           </span>
         </label>
 
-        {/* Descripción */}
         <label className="block">
           Descripción / Sinopsis
           <textarea
@@ -223,11 +241,9 @@ export function Publicar() {
             value={f.descripcion}
             onChange={set('descripcion')}
             className={`${campo} mt-1`}
-            placeholder="Cuéntale a los lectores de qué va tu historia…"
           />
         </label>
 
-        {/* Número de páginas */}
         <label className="block">
           Número de páginas
           <input
@@ -236,11 +252,9 @@ export function Publicar() {
             value={f.numero_paginas}
             onChange={set('numero_paginas')}
             className={`${campo} mt-1`}
-            placeholder="Ej: 120"
           />
         </label>
 
-        {/* Géneros */}
         <div>
           <p>Géneros</p>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -257,37 +271,18 @@ export function Publicar() {
           </div>
         </div>
 
-        {/* Meta, días, formato */}
         <div className="grid gap-5 sm:grid-cols-3">
           <label className="block">
             Meta (CLP)
-            <input
-              type="number"
-              min="1"
-              required
-              value={f.meta}
-              onChange={set('meta')}
-              className={`${campo} mt-1`}
-            />
+            <input type="number" min="1" required value={f.meta} onChange={set('meta')} className={`${campo} mt-1`} />
           </label>
           <label className="block">
             Días de campaña
-            <input
-              type="number"
-              min="1"
-              required
-              value={f.dias}
-              onChange={set('dias')}
-              className={`${campo} mt-1`}
-            />
+            <input type="number" min="1" required value={f.dias} onChange={set('dias')} className={`${campo} mt-1`} />
           </label>
           <label className="block">
             Formato
-            <select
-              value={f.formato}
-              onChange={set('formato')}
-              className={`${campo} mt-1`}
-            >
+            <select value={f.formato} onChange={set('formato')} className={`${campo} mt-1`}>
               <option>Digital + Físico</option>
               <option>Solo digital</option>
               <option>Solo físico</option>
@@ -295,50 +290,21 @@ export function Publicar() {
           </label>
         </div>
 
-        {/* Portada */}
+        {/* 👇 Cambio: guardamos el File, no base64 */}
         <label className="block">
           Portada
-          <input
-            type="file"
-            accept="image/*"
-            onChange={async (e) =>
-              e.target.files[0] &&
-              setF({ ...f, img: await leer(e.target.files[0]) })
-            }
-            className="mt-1 block text-sm"
-          />
-          {f.img && (
-            <img
-              src={f.img}
-              alt="Preview portada"
-              className="mt-3 h-40 rounded-lg object-cover"
-            />
+          <input type="file" accept="image/*" onChange={onPortada} className="mt-1 block text-sm" />
+          {portadaPreview && (
+            <img src={portadaPreview} alt="Preview" className="mt-3 h-40 rounded-lg object-cover" />
           )}
         </label>
 
-        {/* Avance */}
-        <label className="block">
-          Páginas de avance (solo las ven quienes apoyan)
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={async (e) =>
-              setF({
-                ...f,
-                avance: await Promise.all([...e.target.files].map(leer)),
-              })
-            }
-            className="mt-1 block text-sm"
-          />
-          {f.avance.length > 0 && (
-            <p className="mt-2 text-sm text-tinta/60">
-              {f.avance.length} página(s) cargada(s)
-            </p>
-          )}
-        </label>
+        {error && (
+          <p role="alert" className="rounded-lg bg-coral/20 px-4 py-3 text-sm text-coral">
+            {error}
+          </p>
+        )}
 
-        {/* Submit */}
         <div className="flex flex-wrap items-center gap-3 pt-2">
           <Boton type="submit" disabled={enviando}>
             {enviando ? 'Publicando…' : 'Publicar cómic'}

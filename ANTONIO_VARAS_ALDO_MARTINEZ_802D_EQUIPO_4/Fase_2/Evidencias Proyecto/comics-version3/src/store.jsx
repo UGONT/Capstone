@@ -1,6 +1,6 @@
 // src/store.jsx
 import { createContext, useContext, useEffect, useState } from 'react'
-import { fetchComics, fetchEtiquetas,fetchMe, loginApi, logoutApi } from './api'
+import { fetchComics, fetchEtiquetas,fetchMe, loginApi, logoutApi, crearComic  } from './api'
 import { setCampana, colorDe } from './data'
 
 const Ctx = createContext()
@@ -121,20 +121,15 @@ export function StoreProvider({ children }) {
     setUser((prev) => ({ ...prev, ...parcial }))
   }
 
-  const addComic = (c) => {
-    const id = Date.now()
-    setComics((p) => [
-      {
-        bg: 'from-violet-500 to-lime-300',
-        capitulos: [], avance: [],
-        recaudado: 0, apoyos: 0, estado: 'En campaña',
-        ...c, id,
-        creador: user?.email || null,
-        autor: c.autor?.trim() || user?.nombre || 'Anónimo',
-      },
-      ...p,
-    ])
-    return id
+  const addComic = async (datos, portadaFile = null) => {
+    const nuevoComic = await crearComic(datos, portadaFile)
+
+    // Refrescar la lista completa desde el backend
+    const lista = await fetchComics()
+    const normalizada = lista.map(normalizar)
+    setComics(normalizada)
+
+    return nuevoComic.id   // devolvemos el ID real del backend
   }
 
   const aporteDe = (id) =>

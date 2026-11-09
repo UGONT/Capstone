@@ -1,28 +1,100 @@
 from django.shortcuts import render
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly
 # comics/views.py
-from rest_framework import viewsets, mixins
-from .models import Comic, ComicExterno, Etiqueta
-from .serializers import ComicSerializer, ComicExternoSerializer, EtiquetaSerializer, RegistroSerializer, LoginSerializer
+from rest_framework import viewsets, mixins, status
+from .models import Comic, ComicExterno, Etiqueta, Perfil
+from .serializers import (
+    ComicSerializer, ComicExternoSerializer, EtiquetaSerializer, 
+    RegistroSerializer, LoginSerializer, ComicCreateSerializer, 
+    CapituloCreateSerializer, NivelRecompensaSerializer)
 
-from rest_framework.decorators import api_view, permission_classes
+
+
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.response import Response
-from .models import Perfil, Etiqueta, ComicExterno
 
-from rest_framework import status
+
 from rest_framework.views import APIView
 
 
 from django.contrib.auth import authenticate
-from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 
 
-class ComicViewSet(viewsets.ReadOnlyModelViewSet):
-    #  GET /api/comics/       → lista todos los cómics
-    #  GET /api/comics/{id}/  → detalle de un cómic
-    queryset = Comic.objects.all().order_by('-id')
-    serializer_class = ComicSerializer
+
+
+
+class ComicViewSet(viewsets.ModelViewSet):
+    """
+    GET    /api/comics/         → lista (público)
+    GET    /api/comics/{id}/    → detalle (público)
+    POST   /api/comics/         → crear (solo creadores autenticados)
+    PATCH  /api/comics/{id}/    → editar (solo el autor)
+    DELETE /api/comics/{id}/    → borrar (solo el autor)
+    """
+    queryset = Comic.objects.all().order_by('-fecha_creacion')
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get_serializer_class(self):
+        if self.action in ('create', 'update', 'partial_update'):
+            return ComicCreateSerializer
+        return ComicSerializer
+
+    def perform_create(self, serializer):
+        # Validar que el user sea creador
+        perfil = getattr(self.request.user, 'perfil', None)
+        if not perfil or not perfil.es_creador:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Solo los creadores pueden publicar cómics.')
+        serializer.save()
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        comic = serializer.save()
+
+        # Devolver el cómic con el serializer completo (con autores, etiquetas, etc.)
+        salida = ComicSerializer(comic, context={'request': request})
+        return Response(salida.data, status=status.HTTP_201_CREATED)
+
+    # ----- Endpoint anidado: /api/comics/{id}/capitulos/ -----
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def capitulos(self, request, pk=None):
+        comic = self.get_object()
+
+        # Validar que el user sea autor
+        if not comic.autores.filter(autor=request.user).exists():
+            return Response(
+                {'error': 'No eres autor de este cómic.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Auto-asignar número si no viene
+        data = request.data.copy()
+        if not data.get('numero'):
+            ultimo = comic.capitulos.order_by('-numero').first()
+            data['numero'] = (ultimo.numero + 1) if ultimo else 1
+
+        serializer = CapituloCreateSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(comic=comic)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    # ----- Endpoint anidado: /api/comics/{id}/recompensas/ -----
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def recompensas(self, request, pk=None):
+        comic = self.get_object()
+
+        if not comic.autores.filter(autor=request.user).exists():
+            return Response(
+                {'error': 'No eres autor de este cómic.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = NivelRecompensaSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(comic=comic)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
     
 class ComicExternoViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     """GET /api/comics-externos/ — lista de cómics para elegir."""
