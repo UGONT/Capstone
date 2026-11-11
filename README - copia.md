@@ -1,2 +1,0 @@
-# Capstone
-Borrador de capstone
