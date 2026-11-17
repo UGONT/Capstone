@@ -4,7 +4,7 @@ import { Boton, ComicCard, Portada, SelectorComics, clp } from './components'
 import { GENEROS } from './data'
 import { useStore } from './store'
 import { registrarUsuario, crearCapitulo, crearRecompensa,  actualizarCapitulo, 
-          eliminarCapituloApi, actualizarRecompensa, eliminarRecompensaApi, } from './api'
+          eliminarCapituloApi, actualizarRecompensa, eliminarRecompensaApi, actualizarComic, } from './api'
 
 const campo = 'w-full rounded-xl bg-white px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-violeta'
 const chip = (on) => `rounded-full px-4 py-2 text-sm transition-colors ${on ? 'bg-violeta text-white' : 'bg-white hover:bg-violeta/15'}`
@@ -671,7 +671,7 @@ export function Perfil() {
 
 export function PanelComic() {
   const { id } = useParams()
-  const { user, comics, recargarComic } = useStore()
+  const { user, comics, recargarComic, etiquetas  } = useStore()
   const nav = useNavigate()
 
   const comic = comics.find((c) => String(c.id) === id)
@@ -693,6 +693,15 @@ export function PanelComic() {
   //  edición inline
   const [recEditandoId, setRecEditandoId] = useState(null)
   const [recEditForm, setRecEditForm] = useState({ titulo: '', descripcion: '', monto_minimo: 5000, stock: '' })
+
+
+  // Estados para editar el cómic completo
+  const [editandoComic, setEditandoComic] = useState(false)
+  const [comicForm, setComicForm] = useState(null)
+  const [portadaFile, setPortadaFile] = useState(null)
+  const [portadaPreview, setPortadaPreview] = useState('')
+  const [comicError, setComicError] = useState('')
+  const [comicEnviando, setComicEnviando] = useState(false)
 
 
   if (!user) return <Navigate to="/login" replace />
@@ -861,7 +870,86 @@ export function PanelComic() {
     }
   }
 
+  // ─── Handlers de edición de Comic ───
 
+  const iniciarEdicionComic = () => {
+    setComicForm({
+      titulo: comic.titulo,
+      descripcion: comic.descripcion,
+      numero_paginas: comic.numeroPaginas || '',
+      meta: comic.meta,
+      generos: comic.generos || [],
+      estado: comic.estado_raw || 'borrador',
+      crowdfunding_activo: comic.crowdfundingActivo ?? false,
+    })
+    setPortadaFile(null)
+    setPortadaPreview(comic.img || '')
+    setComicError('')
+    setEditandoComic(true)
+  }
+
+  const cancelarEdicionComic = () => {
+    setEditandoComic(false)
+    setComicForm(null)
+    setPortadaFile(null)
+    setPortadaPreview('')
+    setComicError('')
+  }
+
+  const alternarGeneroComic = (g) => {
+    setComicForm({
+      ...comicForm,
+      generos: comicForm.generos.includes(g)
+        ? comicForm.generos.filter((x) => x !== g)
+        : [...comicForm.generos, g],
+    })
+  }
+
+  const onPortadaComic = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setPortadaFile(file)
+    setPortadaPreview(URL.createObjectURL(file))
+  }
+
+  const guardarComic = async (e) => {
+    e.preventDefault()
+    setComicError('')
+    setComicEnviando(true)
+
+    try {
+      await actualizarComic(
+        comic.id,
+        {
+          titulo: comicForm.titulo,
+          descripcion: comicForm.descripcion,
+          numero_paginas: Number(comicForm.numero_paginas) || 0,
+          meta: Number(comicForm.meta),
+          generos: comicForm.generos,
+          estado: comicForm.estado,
+          crowdfunding_activo: comicForm.crowdfunding_activo,
+        },
+        portadaFile,
+      )
+
+      await recargarComic(comic.id)
+      setEditandoComic(false)
+      setComicForm(null)
+      setPortadaFile(null)
+      setPortadaPreview('')
+    } catch (err) {
+      console.error('[editar comic]', err)
+      const mensaje =
+        err.errores && typeof err.errores === 'object'
+          ? Object.entries(err.errores)
+              .map(([c, m]) => `${c}: ${Array.isArray(m) ? m.join(' ') : m}`)
+              .join(' · ')
+          : 'Error al guardar los cambios.'
+      setComicError(mensaje)
+    } finally {
+      setComicEnviando(false)
+    }
+  }
 
   return (
     <section className="mx-auto max-w-5xl px-6 pb-24 md:px-20">
@@ -896,8 +984,159 @@ export function PanelComic() {
             >
               Ver página pública
             </Link>
+            {!editandoComic && (
+              <button
+                onClick={iniciarEdicionComic}
+                className="rounded-full bg-violeta px-4 py-2 text-sm text-white hover:bg-violeta/90"
+              >
+                Editar cómic
+              </button>
+            )}
           </div>
         </div>
+
+        {/* ─────────────── FORM DE EDICIÓN ─────────────── */}
+        {editandoComic && comicForm && (
+          <form
+            onSubmit={guardarComic}
+            className="mt-10 rounded-2xl bg-white p-6 shadow-lg space-y-4"
+          >
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-2xl font-light">Editar cómic</h2>
+              <button
+                type="button"
+                onClick={cancelarEdicionComic}
+                className="text-sm text-tinta/60 hover:text-violeta"
+              >
+                Cancelar
+              </button>
+            </div>
+
+            <label className="block">
+              Título
+              <input
+                required
+                value={comicForm.titulo}
+                onChange={(e) => setComicForm({ ...comicForm, titulo: e.target.value })}
+                className={`${campo} mt-1`}
+              />
+            </label>
+
+            <label className="block">
+              Sinopsis
+              <textarea
+                required
+                rows={4}
+                value={comicForm.descripcion}
+                onChange={(e) => setComicForm({ ...comicForm, descripcion: e.target.value })}
+                className={`${campo} mt-1`}
+              />
+            </label>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <label className="block">
+                Número de páginas
+                <input
+                  type="number"
+                  min="0"
+                  value={comicForm.numero_paginas}
+                  onChange={(e) =>
+                    setComicForm({ ...comicForm, numero_paginas: e.target.value })
+                  }
+                  className={`${campo} mt-1`}
+                />
+              </label>
+              <label className="block">
+                Meta (CLP)
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={comicForm.meta}
+                  onChange={(e) => setComicForm({ ...comicForm, meta: e.target.value })}
+                  className={`${campo} mt-1`}
+                />
+              </label>
+              <label className="block">
+                Estado
+                <select
+                  value={comicForm.estado}
+                  onChange={(e) => setComicForm({ ...comicForm, estado: e.target.value })}
+                  className={`${campo} mt-1`}
+                >
+                  <option value="borrador">Borrador</option>
+                  <option value="en_campana">En campaña</option>
+                  <option value="publicado">Publicado</option>
+                  <option value="cancelado">Cancelado</option>
+                </select>
+              </label>
+            </div>
+
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={comicForm.crowdfunding_activo}
+                onChange={(e) =>
+                  setComicForm({ ...comicForm, crowdfunding_activo: e.target.checked })
+                }
+              />
+              Crowdfunding activo (acepta donaciones)
+            </label>
+
+            <div>
+              <p>Géneros</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {etiquetas.map((e) => (
+                  <button
+                    type="button"
+                    key={e.id}
+                    onClick={() => alternarGeneroComic(e.nombre)}
+                    className={chip(comicForm.generos.includes(e.nombre))}
+                  >
+                    {e.nombre}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label className="block">
+              Portada (dejar vacío para conservar la actual)
+              <input
+                type="file"
+                accept="image/*"
+                onChange={onPortadaComic}
+                className="mt-1 block text-sm"
+              />
+              {portadaPreview && (
+                <img
+                  src={portadaPreview}
+                  alt="Preview"
+                  className="mt-3 h-40 rounded-lg object-cover"
+                />
+              )}
+            </label>
+
+            {comicError && (
+              <p role="alert" className="rounded-lg bg-coral/20 px-4 py-3 text-sm text-coral">
+                {comicError}
+              </p>
+            )}
+
+            <div className="flex gap-3">
+              <Boton type="submit" disabled={comicEnviando}>
+                {comicEnviando ? 'Guardando…' : 'Guardar cambios'}
+              </Boton>
+              <button
+                type="button"
+                onClick={cancelarEdicionComic}
+                className="text-sm text-tinta/60 hover:text-violeta"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        )}
+
       </div>
 
       {/* ─────────────── CAPÍTULOS ─────────────── */}

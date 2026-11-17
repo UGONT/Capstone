@@ -6,7 +6,7 @@ from .models import Comic, ComicExterno, Etiqueta, Perfil
 from .serializers import (
     ComicSerializer, ComicExternoSerializer, EtiquetaSerializer, 
     RegistroSerializer, LoginSerializer, ComicCreateSerializer, 
-    CapituloCreateSerializer, NivelRecompensaSerializer, Capitulo, NivelRecompensa)
+    CapituloCreateSerializer, NivelRecompensaSerializer, Capitulo, NivelRecompensa, ComicUpdateSerializer)
 
 
 
@@ -25,23 +25,23 @@ from rest_framework.exceptions import PermissionDenied
 
 
 class ComicViewSet(viewsets.ModelViewSet):
-    """
-    GET    /api/comics/         → lista (público)
-    GET    /api/comics/{id}/    → detalle (público)
-    POST   /api/comics/         → crear (solo creadores autenticados)
-    PATCH  /api/comics/{id}/    → editar (solo el autor)
-    DELETE /api/comics/{id}/    → borrar (solo el autor)
-    """
     queryset = Comic.objects.all().order_by('-fecha_creacion')
     permission_classes = [IsAuthenticatedOrReadOnly]
+    http_method_names = ['get', 'post', 'patch', 'delete']   # 👈 sin PUT
 
     def get_serializer_class(self):
-        if self.action in ('create', 'update', 'partial_update'):
+        if self.action == 'create':
             return ComicCreateSerializer
+        if self.action == 'partial_update':
+            return ComicUpdateSerializer
         return ComicSerializer
 
+    def _verificar_autor(self, comic):
+        if not comic.autores.filter(autor=self.request.user).exists():
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('No eres autor de este cómic.')
+
     def perform_create(self, serializer):
-        # Validar que el user sea creador
         perfil = getattr(self.request.user, 'perfil', None)
         if not perfil or not perfil.es_creador:
             from rest_framework.exceptions import PermissionDenied
@@ -52,12 +52,28 @@ class ComicViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         comic = serializer.save()
-
-        # Devolver el cómic con el serializer completo (con autores, etiquetas, etc.)
         salida = ComicSerializer(comic, context={'request': request})
         return Response(salida.data, status=status.HTTP_201_CREATED)
 
-    # ----- Endpoint anidado: /api/comics/{id}/capitulos/ -----
+    def partial_update(self, request, *args, **kwargs):
+        comic = self.get_object()
+        self._verificar_autor(comic)
+
+        serializer = self.get_serializer(comic, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        comic = serializer.save()
+
+        # Devolver el cómic con el serializer completo (con autores, etiquetas, etc.)
+        salida = ComicSerializer(comic, context={'request': request})
+        return Response(salida.data)
+
+    def destroy(self, request, *args, **kwargs):
+        comic = self.get_object()
+        self._verificar_autor(comic)
+        return super().destroy(request, *args, **kwargs)
+    
+    
+        # ----- Endpoint anidado: /api/comics/{id}/capitulos/ -----
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def capitulos(self, request, pk=None):
         comic = self.get_object()

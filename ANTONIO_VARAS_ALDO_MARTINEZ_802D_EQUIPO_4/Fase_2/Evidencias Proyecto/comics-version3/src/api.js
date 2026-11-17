@@ -286,3 +286,41 @@ export async function eliminarRecompensaApi(recId) {
   }
   return true
 }
+
+
+// =====================================================================
+// ACTUALIZAR COMIC
+// =====================================================================
+
+export async function actualizarComic(comicId, datos, portadaFile = null) {
+  const form = new FormData()
+
+  // Solo añadimos los campos que vienen en `datos`
+  if (datos.titulo !== undefined) form.append('titulo', datos.titulo)
+  if (datos.descripcion !== undefined) form.append('sinopsis', datos.descripcion)
+  if (datos.numero_paginas !== undefined) form.append('numero_paginas', datos.numero_paginas)
+  if (datos.meta !== undefined) form.append('meta_recaudacion', datos.meta)
+  if (datos.estado !== undefined) form.append('estado', datos.estado)
+  if (datos.crowdfunding_activo !== undefined) {
+    form.append('crowdfunding_activo', datos.crowdfunding_activo ? 'true' : 'false')
+  }
+
+  // Etiquetas: solo si vienen
+  if (datos.generos !== undefined) {
+    datos.generos.forEach((nombre) => form.append('etiquetas', nombre))
+  }
+
+  // Portada opcional
+  if (portadaFile) {
+    form.append('portada', portadaFile)
+  }
+
+  const res = await fetchConAuth(`${API_URL}/comics/${comicId}/`, {
+    method: 'PATCH',
+    body: form,
+  })
+
+  const data = await leerJSON(res)
+  if (!res.ok) throw { status: res.status, errores: data }
+  return data
+}

@@ -92,6 +92,48 @@ class ComicCreateSerializer(serializers.ModelSerializer):
             ComicEtiqueta.objects.get_or_create(comic=comic, etiqueta=etiqueta)
 
         return comic
+    
+    
+
+class ComicUpdateSerializer(serializers.ModelSerializer):
+    etiquetas = serializers.ListField(
+        child=serializers.CharField(), required=False, write_only=True
+    )
+
+    class Meta:
+        model = Comic
+        fields = [
+            'titulo', 'sinopsis', 'portada', 'numero_paginas',
+            'meta_recaudacion', 'estado', 'crowdfunding_activo',
+            'fecha_inicio', 'fecha_fin',
+            'etiquetas',
+        ]
+        extra_kwargs = {
+            'portada': {'required': False},
+            'titulo': {'required': False},
+            'sinopsis': {'required': False},
+        }
+
+    def update(self, instance, validated_data):
+        nombres_etiquetas = validated_data.pop('etiquetas', None)
+
+        # Si NO envían portada nueva, no borrar la existente
+        if 'portada' not in validated_data or validated_data['portada'] is None:
+            validated_data.pop('portada', None)
+
+        # Actualizar campos normales
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        # Reemplazar etiquetas si vienen
+        if nombres_etiquetas is not None:
+            ComicEtiqueta.objects.filter(comic=instance).delete()
+            for nombre in nombres_etiquetas:
+                etiqueta, _ = Etiqueta.objects.get_or_create(nombre=nombre)
+                ComicEtiqueta.objects.get_or_create(comic=instance, etiqueta=etiqueta)
+
+        return instance
 
 
 # =====================================================================

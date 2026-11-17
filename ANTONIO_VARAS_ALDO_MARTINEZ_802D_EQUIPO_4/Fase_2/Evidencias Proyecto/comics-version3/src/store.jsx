@@ -49,6 +49,11 @@ function normalizar(c) {
     avance: c.avance ?? [],
     formato: c.formato || 'Digital',
     estado: ESTADO_LABEL[c.estado] || c.estado,
+
+    estado_raw: c.estado,   
+    crowdfundingActivo: c.crowdfunding_activo ?? false,  
+    numeroPaginas: c.numero_paginas ?? 0,       
+             
     valoracion: Number(c.valoracion_promedio) || 0,
     totalValoraciones: c.total_valoraciones || 0,
     creador: c.creador || null,
