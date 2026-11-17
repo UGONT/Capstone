@@ -631,21 +631,126 @@ export function PanelCreador() {
 
 export function Perfil() {
   const { user, comics, etiquetas, aporteDe, actualizarPerfil } = useStore()
+  const [guardando, setGuardando] = useState(false)
+  const [mensaje, setMensaje] = useState('')
+  const [editandoNick, setEditandoNick] = useState(false)
+  const [nickForm, setNickForm] = useState('')
+
   if (!user) return <Navigate to="/login" replace />
+
   const generos = user.generos || []
+  const leidos = user.leidos || []
   const apoyados = comics.filter((c) => aporteDe(c.id) > 0)
-  const alternar = (g) => actualizarPerfil({ generos: generos.includes(g) ? generos.filter((x) => x !== g) : [...generos, g] })
+
+  // ─── Handlers ───
+
+  const guardarCambios = async (parcial) => {
+    setGuardando(true)
+    setMensaje('')
+    try {
+      await actualizarPerfil(parcial)
+      setMensaje('Guardado ✓')
+      setTimeout(() => setMensaje(''), 1500)
+    } catch (err) {
+      console.error('[actualizar perfil]', err)
+      const msg =
+        err.errores && typeof err.errores === 'object'
+          ? Object.values(err.errores).flat().join(' · ')
+          : 'Error al guardar.'
+      setMensaje(msg)
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  const alternarGenero = (g) => {
+    const nuevos = generos.includes(g)
+      ? generos.filter((x) => x !== g)
+      : [...generos, g]
+    guardarCambios({ generos: nuevos })
+  }
+
+  const actualizarLeidos = (leidos) => {
+    guardarCambios({ leidos })
+  }
+
+  const iniciarEdicionNick = () => {
+    setNickForm(user.nickname || user.nombre || '')
+    setEditandoNick(true)
+  }
+
+  const guardarNick = async (e) => {
+    e.preventDefault()
+    await guardarCambios({ nickname: nickForm })
+    setEditandoNick(false)
+  }
+
+  // ─── JSX ───
+
   return (
     <section className="mx-auto max-w-7xl px-6 pb-24 md:px-20">
-      <h1 className="text-4xl font-light md:text-5xl">Hola, {user.nombre}</h1>
-      <p className="mt-2 text-tinta/60">{user.email}</p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-light md:text-5xl">
+            Hola, {user.nombre || user.username}
+          </h1>
+          <p className="mt-2 text-tinta/60">{user.email}</p>
+        </div>
+        {guardando && (
+          <span className="text-sm text-violeta">Guardando…</span>
+        )}
+        {mensaje && !guardando && (
+          <span
+            className={`text-sm ${
+              mensaje.includes('Error') ? 'text-coral' : 'text-lima'
+            }`}
+          >
+            {mensaje}
+          </span>
+        )}
+      </div>
 
+      {/* Nickname */}
+      <h2 className="mt-12 text-2xl font-light">Tu nickname</h2>
+      {editandoNick ? (
+        <form onSubmit={guardarNick} className="mt-3 flex max-w-md gap-2">
+          <input
+            required
+            value={nickForm}
+            onChange={(e) => setNickForm(e.target.value)}
+            className={campo}
+          />
+          <Boton type="submit" className="py-2" disabled={guardando}>
+            Guardar
+          </Boton>
+          <button
+            type="button"
+            onClick={() => setEditandoNick(false)}
+            className="text-sm text-tinta/60"
+          >
+            Cancelar
+          </button>
+        </form>
+      ) : (
+        <p className="mt-3 flex items-center gap-3">
+          <span>{user.nombre || user.username}</span>
+          <button
+            onClick={iniciarEdicionNick}
+            className="text-sm text-violeta hover:underline"
+          >
+            Editar
+          </button>
+        </p>
+      )}
+
+      {/* Géneros */}
       <h2 className="mt-12 text-2xl font-light">Tus géneros</h2>
       <div className="mt-3 flex flex-wrap gap-2">
         {etiquetas.map((e) => (
           <button
             key={e.id}
-            onClick={() => alternar(e.nombre)}
+            onClick={() => alternarGenero(e.nombre)}
+            disabled={guardando}
             className={chip(generos.includes(e.nombre))}
           >
             {e.nombre}
@@ -653,18 +758,36 @@ export function Perfil() {
         ))}
       </div>
 
+      {/* Leídos */}
       <h2 className="mt-12 text-2xl font-light">Cómics que has leído</h2>
-      <p className="mt-1 text-sm text-tinta/60">Agrega los que vayas leyendo. El asistente IA los usa para recomendarte.</p>
-      <div className="max-w-3xl"><SelectorComics seleccion={user.leidos || []} onChange={(leidos) => actualizarPerfil({ leidos })} /></div>
+      <p className="mt-1 text-sm text-tinta/60">
+        Agrega los que vayas leyendo. El asistente IA los usa para recomendarte.
+      </p>
+      <div className="max-w-3xl">
+        <SelectorComics seleccion={leidos} onChange={actualizarLeidos} />
+      </div>
 
+      {/* Apoyados */}
       <h2 className="mt-12 text-2xl font-light">Cómics que apoyaste</h2>
       {apoyados.length ? (
         <div className="mt-6 grid gap-8 sm:grid-cols-2 md:grid-cols-3">
           {apoyados.map((c) => (
-            <div key={c.id}><ComicCard c={c} /><p className="mt-2 text-sm text-violeta">Aportaste {clp(aporteDe(c.id))}</p></div>
+            <div key={c.id}>
+              <ComicCard c={c} />
+              <p className="mt-2 text-sm text-violeta">
+                Aportaste {clp(aporteDe(c.id))}
+              </p>
+            </div>
           ))}
         </div>
-      ) : <p className="mt-4">Aún no apoyas ningún cómic. <Link to="/explorar" className="text-violeta">Explorar cómics</Link></p>}
+      ) : (
+        <p className="mt-4">
+          Aún no apoyas ningún cómic.{' '}
+          <Link to="/explorar" className="text-violeta">
+            Explorar cómics
+          </Link>
+        </p>
+      )}
     </section>
   )
 }

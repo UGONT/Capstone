@@ -11,6 +11,7 @@ from .views import (
     actualizar_mis_gustos,
     CapituloViewSet,
     NivelRecompensaViewSet,
+    MiPerfilView,
 )
 
 router = DefaultRouter()
@@ -26,6 +27,7 @@ urlpatterns = [
     path('auth/registro/', RegisterView.as_view(), name='registro'),
     path('auth/me/', MeView.as_view(), name='me'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
+    path('perfil/', MiPerfilView.as_view(), name='mi-perfil'),
 ]
 
 urlpatterns += router.urls

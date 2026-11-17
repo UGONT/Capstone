@@ -1,6 +1,6 @@
 // src/store.jsx
 import { createContext, useContext, useEffect, useState } from 'react'
-import { fetchComics, fetchEtiquetas,fetchMe, loginApi, logoutApi, crearComic, fetchComicDetalle  } from './api'
+import { fetchComics, fetchEtiquetas,fetchMe, loginApi, logoutApi, crearComic, fetchComicDetalle, actualizarMiPerfilApi  } from './api'
 import { setCampana, colorDe } from './data'
 
 const Ctx = createContext()
@@ -140,9 +140,12 @@ export function StoreProvider({ children }) {
     setUser(null)
   }
 
-  // Actualizar perfil (por ahora solo local — después endpoint)
-  const actualizarPerfil = (parcial) => {
-    setUser((prev) => ({ ...prev, ...parcial }))
+  // Actualizar perfil 
+  const actualizarPerfil = async (parcial, avatarFile = null) => {
+    const perfilActualizado = await actualizarMiPerfilApi(parcial, avatarFile)
+    // Fusionamos con el user existente (mantiene id, username, etc.)
+    setUser((prev) => ({ ...prev, ...perfilActualizado }))
+    return perfilActualizado
   }
 
   const addComic = async (datos, portadaFile = null) => {

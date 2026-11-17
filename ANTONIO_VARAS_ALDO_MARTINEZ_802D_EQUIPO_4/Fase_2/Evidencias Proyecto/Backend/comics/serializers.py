@@ -299,3 +299,74 @@ class LoginSerializer(serializers.Serializer):
     
     
     
+
+
+
+class PerfilUpdateSerializer(serializers.ModelSerializer):
+    gustos = serializers.ListField(
+        child=serializers.CharField(), required=False, write_only=True
+    )
+    comics_leidos = serializers.ListField(
+        child=serializers.CharField(), required=False, write_only=True
+    )
+    usuario_email = serializers.CharField(source='usuario.email', read_only=True)
+    usuario_username = serializers.CharField(source='usuario.username', read_only=True)
+    es_creador = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = Perfil
+        fields = [
+            'id', 'nickname', 'edad', 'bio', 'avatar',
+            'gustos', 'comics_leidos',
+            'usuario_email', 'usuario_username', 'es_creador',
+        ]
+
+    def validate_nickname(self, value):
+        perfil_actual = self.instance
+        qs = Perfil.objects.filter(nickname=value)
+        if perfil_actual:
+            qs = qs.exclude(pk=perfil_actual.pk)
+        if qs.exists():
+            raise serializers.ValidationError('Este nickname ya está en uso.')
+        return value
+
+    def to_representation(self, instance):
+        """Salida con nombres, no con IDs, para que el front lo use directo."""
+        return {
+            'id': instance.id,
+            'username': instance.usuario.username,
+            'email': instance.usuario.email,
+            'nickname': instance.nickname,
+            'edad': instance.edad,
+            'bio': instance.bio,
+            'es_creador': instance.es_creador,
+            'generos': [e.nombre for e in instance.gustos.all()],
+            'leidos': [c.nombre for c in instance.comics_leidos.all()],
+        }
+
+    def update(self, instance, validated_data):
+        nombres_gustos = validated_data.pop('gustos', None)
+        titulos_leidos = validated_data.pop('comics_leidos', None)
+
+        # Campos directos
+        for attr in ('nickname', 'edad', 'bio'):
+            if attr in validated_data:
+                setattr(instance, attr, validated_data[attr])
+
+        # Avatar: si viene None, se conserva
+        if validated_data.get('avatar') is not None:
+            instance.avatar = validated_data['avatar']
+
+        instance.save()
+
+        # Gustos: reemplazo completo si vienen
+        if nombres_gustos is not None:
+            etiquetas = Etiqueta.objects.filter(nombre__in=nombres_gustos)
+            instance.gustos.set(etiquetas)
+
+        # Cómics leídos
+        if titulos_leidos is not None:
+            comics_obj = ComicExterno.objects.filter(nombre__in=titulos_leidos)
+            instance.comics_leidos.set(comics_obj)
+
+        return instance

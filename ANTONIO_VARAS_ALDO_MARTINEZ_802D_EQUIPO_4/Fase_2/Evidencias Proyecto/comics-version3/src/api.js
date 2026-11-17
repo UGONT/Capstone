@@ -324,3 +324,53 @@ export async function actualizarComic(comicId, datos, portadaFile = null) {
   if (!res.ok) throw { status: res.status, errores: data }
   return data
 }
+
+
+// =====================================================================
+// PERFIL
+// =====================================================================
+
+export async function fetchMiPerfil() {
+  const res = await fetchConAuth(`${API_URL}/perfil/`)
+  if (!res.ok) throw new Error(`Error ${res.status}`)
+  return res.json()
+}
+
+export async function actualizarMiPerfilApi(datos, avatarFile = null) {
+  const form = new FormData()
+
+  if (datos.nickname !== undefined) form.append('nickname', datos.nickname)
+  if (datos.edad !== undefined && datos.edad !== null && datos.edad !== '') {
+    form.append('edad', datos.edad)
+  }
+  if (datos.bio !== undefined) form.append('bio', datos.bio)
+
+  if (datos.generos !== undefined) {
+    datos.generos.forEach((nombre) => form.append('gustos', nombre))
+  }
+  if (datos.leidos !== undefined) {
+    datos.leidos.forEach((titulo) => form.append('comics_leidos', titulo))
+  }
+
+  if (avatarFile) {
+    form.append('avatar', avatarFile)
+  }
+
+  const res = await fetchConAuth(`${API_URL}/perfil/`, {
+    method: 'PATCH',
+    body: form,
+  })
+
+  const data = await leerJSON(res)
+  if (!res.ok) throw { status: res.status, errores: data }
+  return {
+    id: data.id,
+    username: data.username,
+    email: data.email,
+    nombre: data.nickname,    // 👈 mapeo clav
+    edad: data.edad,
+    generos: data.generos,
+    leidos: data.leidos,
+    es_creador: data.es_creador,
+  }
+}

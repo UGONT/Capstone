@@ -6,7 +6,7 @@ from .models import Comic, ComicExterno, Etiqueta, Perfil
 from .serializers import (
     ComicSerializer, ComicExternoSerializer, EtiquetaSerializer, 
     RegistroSerializer, LoginSerializer, ComicCreateSerializer, 
-    CapituloCreateSerializer, NivelRecompensaSerializer, Capitulo, NivelRecompensa, ComicUpdateSerializer)
+    CapituloCreateSerializer, NivelRecompensaSerializer, Capitulo, NivelRecompensa, ComicUpdateSerializer, PerfilUpdateSerializer)
 
 
 
@@ -22,7 +22,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.exceptions import PermissionDenied
 
 
-
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 class ComicViewSet(viewsets.ModelViewSet):
     queryset = Comic.objects.all().order_by('-fecha_creacion')
@@ -276,3 +276,36 @@ class NivelRecompensaViewSet(viewsets.ModelViewSet):
         obj = self.get_object()
         _verificar_autor_comic(obj.comic, request.user)
         return super().destroy(request, *args, **kwargs)
+    
+    
+
+
+
+class MiPerfilView(APIView):
+    """
+    GET   /api/perfil/   → devuelve el perfil del usuario logueado
+    PATCH /api/perfil/   → actualiza nickname, edad, bio, avatar, gustos, leídos
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get(self, request):
+        perfil, _ = Perfil.objects.get_or_create(
+            usuario=request.user,
+            defaults={'nickname': request.user.username},
+        )
+        serializer = PerfilUpdateSerializer(perfil)
+        return Response(serializer.data)
+
+    def patch(self, request):
+        perfil, _ = Perfil.objects.get_or_create(
+            usuario=request.user,
+            defaults={'nickname': request.user.username},
+        )
+        serializer = PerfilUpdateSerializer(
+            perfil, data=request.data, partial=True
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
