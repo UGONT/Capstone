@@ -101,7 +101,8 @@ class ComicCreateSerializer(serializers.ModelSerializer):
 class CapituloCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Capitulo
-        fields = ['numero', 'titulo', 'contenido', 'fecha_publicacion', 'es_gratis']
+        fields = ['id', 'numero', 'titulo', 'contenido', 'fecha_publicacion', 'es_gratis']
+        read_only_fields = ['id']
 
 
 # =====================================================================

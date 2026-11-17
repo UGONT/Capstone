@@ -121,10 +121,12 @@ export function Campana() {
   )
 }
 
-export function ComicCard({ c }) {
+export function ComicCard({ c, to }) {
   const pct = Math.round((c.recaudado / c.meta) * 100)
   return (
-    <Link to={`/comic/${c.id}`} className="block focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violeta">
+    <Link
+      to={to || `/comic/${c.id}`}
+      className="block focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violeta">
       <div className="relative">
         <Portada bg={c.bg} img={c.img} titulo={c.titulo} className="aspect-[4/5] w-full rounded-2xl shadow-lg shadow-tinta/10" />
         <span className="absolute left-3 top-3 rounded-full bg-white px-3 py-1.5 text-xs">Piloto gratis</span>

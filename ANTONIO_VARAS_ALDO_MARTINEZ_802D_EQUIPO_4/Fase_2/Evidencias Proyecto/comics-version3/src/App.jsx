@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Outlet, Route, Routes, useLocation, useOutletContext } from 'react-router-dom'
 import { StoreProvider } from './store'
 import { Navbar, Hero, Campana, Catalogo, Creadores, Footer, ChatIA } from './components'
-import { Explorar, Detalle, Publicar, Login, Perfil, PanelCreador  } from './pages'
+import { Explorar, Detalle, Publicar, Login, Perfil, PanelCreador, PanelComic   } from './pages'
 
 function Layout() {
   const [chat, setChat] = useState(false)
@@ -33,6 +33,7 @@ export default function App() {
             <Route path="explorar" element={<Explorar />} />
             <Route path="comic/:id" element={<Detalle />} />
             <Route path="creadores" element={<PanelCreador />} /> 
+            <Route path="creadores/comic/:id" element={<PanelComic />} />
             <Route path="publicar" element={<Publicar />} />
             <Route path="login" element={<Login />} />
             <Route path="perfil" element={<Perfil />} />

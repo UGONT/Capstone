@@ -1,6 +1,6 @@
 // src/store.jsx
 import { createContext, useContext, useEffect, useState } from 'react'
-import { fetchComics, fetchEtiquetas,fetchMe, loginApi, logoutApi, crearComic  } from './api'
+import { fetchComics, fetchEtiquetas,fetchMe, loginApi, logoutApi, crearComic, fetchComicDetalle  } from './api'
 import { setCampana, colorDe } from './data'
 
 const Ctx = createContext()
@@ -12,6 +12,8 @@ const ESTADO_LABEL = {
   borrador: 'Borrador',
   cancelado: 'Cancelado',
 }
+
+
 
 function normalizar(c) {
   return {
@@ -28,7 +30,22 @@ function normalizar(c) {
     meta: c.meta || 0,
     apoyos: c.apoyos ?? 0,
     dias: c.dias ?? null,
-    capitulos: c.capitulos ?? [],
+    capitulos: (c.capitulos ?? []).map((k) => ({
+      id: k.id,
+      n: k.numero,
+      titulo: k.titulo,
+      contenido: k.contenido,
+      fecha: k.fecha_publicacion ? k.fecha_publicacion.slice(0, 10) : null,
+      es_gratis: k.es_gratis,
+    })),
+    recompensas: (c.recompensas ?? []).map((r) => ({
+      id: r.id,
+      titulo: r.titulo,
+      descripcion: r.descripcion,
+      monto_minimo: r.monto_minimo,
+      stock: r.stock,
+      orden: r.orden,
+    })),
     avance: c.avance ?? [],
     formato: c.formato || 'Digital',
     estado: ESTADO_LABEL[c.estado] || c.estado,
@@ -37,6 +54,8 @@ function normalizar(c) {
     creador: c.creador || null,
   }
 }
+
+
 
 export function StoreProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -149,6 +168,8 @@ export function StoreProvider({ children }) {
     }))
   }
 
+  
+
   const addCapitulo = (id, titulo) =>
     setComics((p) =>
       p.map((c) =>
@@ -168,6 +189,13 @@ export function StoreProvider({ children }) {
       )
     )
 
+  const recargarComic = async (comicId) => {
+  const detalle = await fetchComicDetalle(comicId)
+  const normalizado = normalizar(detalle)
+    setComics((prev) => prev.map((c) => (c.id === comicId ? normalizado : c)))
+    return normalizado
+  }
+
   return (
     <Ctx.Provider
       value={{
@@ -176,9 +204,12 @@ export function StoreProvider({ children }) {
         etiquetas, cargandoEtiquetas,
         login, logout, actualizarPerfil,
         addComic, aporteDe, apoyar, addCapitulo,
+        recargarComic,
       }}
     >
       {children}
     </Ctx.Provider>
   )
 }
+
+

@@ -221,3 +221,68 @@ export async function crearRecompensa(comicId, datos) {
   if (!res.ok) throw { status: res.status, errores: data }
   return data
 }
+
+
+
+
+export async function fetchComicDetalle(id) {
+  const res = await fetch(`${API_URL}/comics/${id}/`)
+  if (!res.ok) throw new Error(`Error ${res.status} al cargar el cómic`)
+  return res.json()
+}
+
+
+
+
+
+// =====================================================================
+// EDITAR Y ELIMINAR CAPÍTULOS
+// =====================================================================
+
+export async function actualizarCapitulo(capId, datos) {
+  const res = await fetchConAuth(`${API_URL}/capitulos/${capId}/`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(datos),
+  })
+  const data = await leerJSON(res)
+  if (!res.ok) throw { status: res.status, errores: data }
+  return data
+}
+
+export async function eliminarCapituloApi(capId) {
+  const res = await fetchConAuth(`${API_URL}/capitulos/${capId}/`, {
+    method: 'DELETE',
+  })
+  if (!res.ok && res.status !== 204) {
+    const err = await leerJSON(res).catch(() => ({}))
+    throw { status: res.status, errores: err }
+  }
+  return true
+}
+
+// =====================================================================
+// EDITAR Y ELIMINAR RECOMPENSAS
+// =====================================================================
+
+export async function actualizarRecompensa(recId, datos) {
+  const res = await fetchConAuth(`${API_URL}/recompensas/${recId}/`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(datos),
+  })
+  const data = await leerJSON(res)
+  if (!res.ok) throw { status: res.status, errores: data }
+  return data
+}
+
+export async function eliminarRecompensaApi(recId) {
+  const res = await fetchConAuth(`${API_URL}/recompensas/${recId}/`, {
+    method: 'DELETE',
+  })
+  if (!res.ok && res.status !== 204) {
+    const err = await leerJSON(res).catch(() => ({}))
+    throw { status: res.status, errores: err }
+  }
+  return true
+}

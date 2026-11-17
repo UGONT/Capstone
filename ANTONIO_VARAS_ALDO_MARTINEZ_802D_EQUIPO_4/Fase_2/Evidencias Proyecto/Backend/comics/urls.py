@@ -9,12 +9,16 @@ from .views import (
     MeView,
     LoginView,
     actualizar_mis_gustos,
+    CapituloViewSet,
+    NivelRecompensaViewSet,
 )
 
 router = DefaultRouter()
 router.register(r'comics', ComicViewSet, basename='comic')
 router.register(r'comics-externos', ComicExternoViewSet, basename='comic-externo')
 router.register(r'etiquetas', EtiquetaViewSet, basename='etiqueta')
+router.register(r'capitulos', CapituloViewSet, basename='capitulo')             
+router.register(r'recompensas', NivelRecompensaViewSet, basename='recompensa')
 
 urlpatterns = [
     path('perfil/gustos/', actualizar_mis_gustos, name='actualizar-gustos'),

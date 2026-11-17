@@ -6,7 +6,7 @@ from .models import Comic, ComicExterno, Etiqueta, Perfil
 from .serializers import (
     ComicSerializer, ComicExternoSerializer, EtiquetaSerializer, 
     RegistroSerializer, LoginSerializer, ComicCreateSerializer, 
-    CapituloCreateSerializer, NivelRecompensaSerializer)
+    CapituloCreateSerializer, NivelRecompensaSerializer, Capitulo, NivelRecompensa)
 
 
 
@@ -19,7 +19,7 @@ from rest_framework.views import APIView
 
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-
+from rest_framework.exceptions import PermissionDenied
 
 
 
@@ -195,3 +195,68 @@ class MeView(APIView):
 
     def get(self, request):
         return Response(_serializar_usuario(request.user))
+    
+    
+    
+def _verificar_autor_comic(comic, user):
+    """Lanza 403 si el user no es autor del cómic."""
+    if not comic.autores.filter(autor=user).exists():
+        raise PermissionDenied('No eres autor de este cómic.')
+
+
+class CapituloViewSet(viewsets.ModelViewSet):
+    """
+    GET    /api/capitulos/?comic=X     → lista de capítulos de un cómic
+    PATCH  /api/capitulos/{id}/        → editar
+    DELETE /api/capitulos/{id}/        → eliminar
+    """
+    serializer_class = CapituloCreateSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = Capitulo.objects.all().select_related('comic')
+    http_method_names = ['get', 'patch', 'delete']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        comic_id = self.request.query_params.get('comic')
+        if comic_id:
+            qs = qs.filter(comic_id=comic_id)
+        return qs
+
+    def update(self, request, *args, **kwargs):
+        obj = self.get_object()
+        _verificar_autor_comic(obj.comic, request.user)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        obj = self.get_object()
+        _verificar_autor_comic(obj.comic, request.user)
+        return super().destroy(request, *args, **kwargs)
+
+
+class NivelRecompensaViewSet(viewsets.ModelViewSet):
+    """
+    GET    /api/recompensas/?comic=X   → lista de recompensas de un cómic
+    PATCH  /api/recompensas/{id}/      → editar
+    DELETE /api/recompensas/{id}/      → eliminar
+    """
+    serializer_class = NivelRecompensaSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = NivelRecompensa.objects.all().select_related('comic')
+    http_method_names = ['get', 'patch', 'delete']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        comic_id = self.request.query_params.get('comic')
+        if comic_id:
+            qs = qs.filter(comic_id=comic_id)
+        return qs
+
+    def update(self, request, *args, **kwargs):
+        obj = self.get_object()
+        _verificar_autor_comic(obj.comic, request.user)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        obj = self.get_object()
+        _verificar_autor_comic(obj.comic, request.user)
+        return super().destroy(request, *args, **kwargs)

@@ -3,7 +3,8 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-r
 import { Boton, ComicCard, Portada, SelectorComics, clp } from './components'
 import { GENEROS } from './data'
 import { useStore } from './store'
-import { registrarUsuario } from './api'
+import { registrarUsuario, crearCapitulo, crearRecompensa,  actualizarCapitulo, 
+          eliminarCapituloApi, actualizarRecompensa, eliminarRecompensaApi, } from './api'
 
 const campo = 'w-full rounded-xl bg-white px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-violeta'
 const chip = (on) => `rounded-full px-4 py-2 text-sm transition-colors ${on ? 'bg-violeta text-white' : 'bg-white hover:bg-violeta/15'}`
@@ -93,6 +94,26 @@ export function Detalle() {
           ) : <p className="mt-4 text-tinta/60">Aún no hay capítulos publicados.{mio && ' Sube el primero con el botón de la derecha.'}</p>}
 
           <h2 className="mt-12 text-2xl font-light">Avance exclusivo</h2>
+
+          {c.recompensas?.length > 0 && (
+            <div className="mt-12">
+              <h2 className="text-2xl font-light">Recompensas</h2>
+              <ul className="mt-4 space-y-2">
+                {c.recompensas.map((r) => (
+                  <li key={r.id} className="rounded-xl bg-white px-5 py-4 shadow-sm">
+                    <p className="font-medium">
+                      {r.titulo} · desde {clp(r.monto_minimo)}
+                    </p>
+                    <p className="mt-1 text-sm text-tinta/60">{r.descripcion}</p>
+                    {r.stock != null && (
+                      <p className="mt-1 text-xs text-tinta/50">Disponibles: {r.stock}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <p className="mt-1 text-sm text-tinta/60">{visible ? 'Gracias por apoyar. Este avance es solo para ti.' : 'Apoya el proyecto para ver páginas del siguiente capítulo.'}</p>
           <div className="relative mt-4">
             <div className={`grid grid-cols-2 gap-3 sm:grid-cols-4 ${visible ? '' : 'pointer-events-none blur-md select-none'}`}>
@@ -103,6 +124,9 @@ export function Detalle() {
             {!visible && <p className="absolute inset-0 grid place-items-center text-center text-lg">Apoya para desbloquear</p>}
           </div>
         </div>
+
+
+
 
         <aside className="h-fit rounded-3xl bg-white p-7 shadow-xl shadow-tinta/10">
           <p className="text-2xl">{clp(c.recaudado)} <span className="text-sm text-tinta/50">de {clp(c.meta)}</span></p>
@@ -595,7 +619,7 @@ export function PanelCreador() {
       <div className="mt-6 grid gap-8 sm:grid-cols-2 md:grid-cols-3">
         {misComics.map((c) => (
           <div key={c.id}>
-            <ComicCard c={c} />
+            <ComicCard c={c} to={`/creadores/comic/${c.id}`} />
           </div>
         ))}
       </div>
@@ -641,6 +665,529 @@ export function Perfil() {
           ))}
         </div>
       ) : <p className="mt-4">Aún no apoyas ningún cómic. <Link to="/explorar" className="text-violeta">Explorar cómics</Link></p>}
+    </section>
+  )
+}
+
+export function PanelComic() {
+  const { id } = useParams()
+  const { user, comics, recargarComic } = useStore()
+  const nav = useNavigate()
+
+  const comic = comics.find((c) => String(c.id) === id)
+
+  // Estados para capítulo
+  const [capForm, setCapForm] = useState({ titulo: '', contenido: '', es_gratis: true })
+  const [capEnviando, setCapEnviando] = useState(false)
+  const [capError, setCapError] = useState('')
+
+  //  edición inline
+  const [capEditandoId, setCapEditandoId] = useState(null)
+  const [capEditForm, setCapEditForm] = useState({ titulo: '', contenido: '', es_gratis: true })
+
+  // Estados para recompensa
+  const [recForm, setRecForm] = useState({ titulo: '', descripcion: '', monto_minimo: 5000, stock: '' })
+  const [recEnviando, setRecEnviando] = useState(false)
+  const [recError, setRecError] = useState('')
+
+  //  edición inline
+  const [recEditandoId, setRecEditandoId] = useState(null)
+  const [recEditForm, setRecEditForm] = useState({ titulo: '', descripcion: '', monto_minimo: 5000, stock: '' })
+
+
+  if (!user) return <Navigate to="/login" replace />
+  if (!comic) {
+    return (
+      <section className="mx-auto max-w-5xl px-6 py-24 md:px-20">
+        <p>
+          No encontramos este cómic.{' '}
+          <Link to="/creadores" className="text-violeta">Volver al panel</Link>
+        </p>
+      </section>
+    )
+  }
+
+  // Verificar autoría
+  const esAutor =
+    comic.creador === user.email ||
+    comic.autores?.some((a) => a.username === user.username)
+
+  if (!esAutor) return <Navigate to={`/comic/${id}`} replace />
+
+  const agregarCapitulo = async (e) => {
+    e.preventDefault()
+    setCapError('')
+    setCapEnviando(true)
+
+    // 1) Crear el capítulo
+    try {
+      await crearCapitulo(comic.id, {
+        titulo: capForm.titulo,
+        contenido: capForm.contenido,
+        es_gratis: capForm.es_gratis,
+        fecha_publicacion: new Date().toISOString(),
+      })
+    } catch (err) {
+      console.error('[crearCapitulo]', err)
+      setCapError('Error al crear el capítulo.')
+      setCapEnviando(false)
+      return
+    }
+
+    // 2) Refrescar la lista (si falla, no es crítico)
+    try {
+      await recargarComic(comic.id)
+    } catch (err) {
+      console.error('[recargarComic después de capítulo]', err)
+      // No mostramos error: el capítulo YA se creó.
+    }
+
+    setCapForm({ titulo: '', contenido: '', es_gratis: true })
+    setCapEnviando(false)
+  }
+
+  const agregarRecompensa = async (e) => {
+    e.preventDefault()
+    setRecError('')
+    setRecEnviando(true)
+
+    try {
+      const datos = {
+        titulo: recForm.titulo,
+        descripcion: recForm.descripcion,
+        monto_minimo: Number(recForm.monto_minimo),
+        orden: comic.recompensas?.length ?? 0,
+      }
+      if (recForm.stock) datos.stock = Number(recForm.stock)
+
+      await crearRecompensa(comic.id, datos)
+    } catch (err) {
+      console.error('[crearRecompensa]', err)
+      setRecError('Error al crear la recompensa.')
+      setRecEnviando(false)
+      return
+    }
+
+    try {
+      await recargarComic(comic.id)
+    } catch (err) {
+      console.error('[recargarComic después de recompensa]', err)
+    }
+
+    setRecForm({ titulo: '', descripcion: '', monto_minimo: 5000, stock: '' })
+    setRecEnviando(false)
+  }
+
+  const pct = comic.meta ? Math.round((comic.recaudado / comic.meta) * 100) : 0
+
+  // ─── Handlers de edición de capítulos ───
+
+  const iniciarEdicionCap = (k) => {
+    setCapEditandoId(k.id)
+    setCapEditForm({
+      titulo: k.titulo,
+      contenido: k.contenido || '',
+      es_gratis: k.es_gratis ?? true,
+    })
+  }
+
+  const guardarEdicionCap = async (e) => {
+    e.preventDefault()
+    try {
+      await actualizarCapitulo(capEditandoId, {
+        titulo: capEditForm.titulo,
+        contenido: capEditForm.contenido,
+        es_gratis: capEditForm.es_gratis,
+      })
+      await recargarComic(comic.id)
+      setCapEditandoId(null)
+    } catch (err) {
+      console.error('[editar capítulo]', err)
+      alert('Error al guardar el capítulo.')
+    }
+  }
+
+  const eliminarCapitulo = async (k) => {
+    if (!window.confirm(`¿Eliminar el capítulo "${k.titulo}"?`)) return
+    try {
+      await eliminarCapituloApi(k.id)
+      await recargarComic(comic.id)
+    } catch (err) {
+      console.error('[eliminar capítulo]', err)
+      alert('Error al eliminar el capítulo.')
+    }
+  }
+
+  // ─── Handlers de edición de recompensas ───
+
+  const iniciarEdicionRec = (r) => {
+    setRecEditandoId(r.id)
+    setRecEditForm({
+      titulo: r.titulo,
+      descripcion: r.descripcion,
+      monto_minimo: r.monto_minimo,
+      stock: r.stock ?? '',
+    })
+  }
+
+  const guardarEdicionRec = async (e) => {
+    e.preventDefault()
+    try {
+      const datos = {
+        titulo: recEditForm.titulo,
+        descripcion: recEditForm.descripcion,
+        monto_minimo: Number(recEditForm.monto_minimo),
+      }
+      // stock: vacío → null, número → int
+      datos.stock = recEditForm.stock === '' ? null : Number(recEditForm.stock)
+
+      await actualizarRecompensa(recEditandoId, datos)
+      await recargarComic(comic.id)
+      setRecEditandoId(null)
+    } catch (err) {
+      console.error('[editar recompensa]', err)
+      alert('Error al guardar la recompensa.')
+    }
+  }
+
+  const eliminarRecompensa = async (r) => {
+    if (!window.confirm(`¿Eliminar la recompensa "${r.titulo}"?`)) return
+    try {
+      await eliminarRecompensaApi(r.id)
+      await recargarComic(comic.id)
+    } catch (err) {
+      console.error('[eliminar recompensa]', err)
+      alert('Error al eliminar la recompensa.')
+    }
+  }
+
+
+
+  return (
+    <section className="mx-auto max-w-5xl px-6 pb-24 md:px-20">
+      <Link to="/creadores" className="text-sm text-violeta">← Volver al panel</Link>
+
+      {/* ─────────────── HEADER ─────────────── */}
+      <div className="mt-6 flex flex-wrap gap-6">
+        <Portada
+          bg={comic.bg}
+          img={comic.img}
+          titulo={comic.titulo}
+          className="aspect-[3/4] w-40 shrink-0 rounded-2xl shadow-lg"
+        />
+        <div className="flex-1 min-w-[260px]">
+          <span className="inline-block rounded-full bg-violeta/15 px-3 py-1 text-xs text-violeta">
+            {comic.estado}
+          </span>
+          <h1 className="mt-3 text-3xl font-light md:text-4xl">{comic.titulo}</h1>
+          <p className="mt-1 text-sm text-tinta/60">{comic.autor}</p>
+
+          <div className="mt-4 flex flex-wrap gap-5 text-sm">
+            <span>{clp(comic.recaudado)} / {clp(comic.meta)}</span>
+            <span className="text-tinta/60">({pct}%)</span>
+            <span>{comic.apoyos} apoyos</span>
+            {comic.valoracion > 0 && <span>⭐ {comic.valoracion}</span>}
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Link
+              to={`/comic/${comic.id}`}
+              className="rounded-full bg-white px-4 py-2 text-sm hover:bg-cream"
+            >
+              Ver página pública
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* ─────────────── CAPÍTULOS ─────────────── */}
+      <div className="mt-16">
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-2xl font-light">Capítulos</h2>
+          <span className="text-sm text-tinta/50">
+            {comic.capitulos?.length ?? 0} publicados
+          </span>
+        </div>
+
+        {comic.capitulos?.length ? (
+          <ul className="mt-4 space-y-2">
+            {comic.capitulos.map((k) => (
+              <li key={k.id || k.n} className="rounded-xl bg-white shadow-sm">
+                {capEditandoId === k.id ? (
+                  // ─── MODO EDICIÓN ───
+                  <form onSubmit={guardarEdicionCap} className="p-5 space-y-3">
+                    <label className="block">
+                      Título
+                      <input
+                        required
+                        value={capEditForm.titulo}
+                        onChange={(e) => setCapEditForm({ ...capEditForm, titulo: e.target.value })}
+                        className={`${campo} mt-1`}
+                      />
+                    </label>
+                    <label className="block">
+                      Contenido
+                      <textarea
+                        required
+                        rows={4}
+                        value={capEditForm.contenido}
+                        onChange={(e) => setCapEditForm({ ...capEditForm, contenido: e.target.value })}
+                        className={`${campo} mt-1`}
+                      />
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={capEditForm.es_gratis}
+                        onChange={(e) => setCapEditForm({ ...capEditForm, es_gratis: e.target.checked })}
+                      />
+                      Es gratis
+                    </label>
+                    <div className="flex gap-3">
+                      <Boton type="submit" className="py-2">Guardar</Boton>
+                      <button
+                        type="button"
+                        onClick={() => setCapEditandoId(null)}
+                        className="text-sm text-tinta/60 hover:text-violeta"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  // ─── MODO LECTURA ───
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4">
+                    <span>
+                      <span className="text-tinta/50">Cap. {k.n} ·</span> {k.titulo}
+                    </span>
+                    <div className="flex items-center gap-3 text-sm">
+                      <span className="text-tinta/50">
+                        {k.es_gratis ? 'Gratis' : 'Pago'} · {k.fecha || 'sin fecha'}
+                      </span>
+                      <button
+                        onClick={() => iniciarEdicionCap(k)}
+                        className="text-violeta hover:underline"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => eliminarCapitulo(k)}
+                        className="text-coral hover:underline"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-4 text-tinta/60">Aún no has publicado capítulos.</p>
+        )}
+
+        <form onSubmit={agregarCapitulo} className="mt-6 rounded-2xl bg-white p-6 shadow-sm">
+          <h3 className="text-lg font-light">Agregar capítulo</h3>
+          <div className="mt-4 space-y-4">
+            <label className="block">
+              Título
+              <input
+                required
+                value={capForm.titulo}
+                onChange={(e) => setCapForm({ ...capForm, titulo: e.target.value })}
+                className={`${campo} mt-1`}
+                placeholder="Ej: El comienzo"
+              />
+            </label>
+            <label className="block">
+              Contenido
+              <textarea
+                required
+                rows={4}
+                value={capForm.contenido}
+                onChange={(e) => setCapForm({ ...capForm, contenido: e.target.value })}
+                className={`${campo} mt-1`}
+                placeholder="Texto del capítulo…"
+              />
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={capForm.es_gratis}
+                onChange={(e) => setCapForm({ ...capForm, es_gratis: e.target.checked })}
+              />
+              Es gratis (visible para todos)
+            </label>
+            {capError && <p className="text-sm text-coral">{capError}</p>}
+            <Boton type="submit" disabled={capEnviando}>
+              {capEnviando ? 'Agregando…' : 'Agregar capítulo'}
+            </Boton>
+          </div>
+        </form>
+      </div>
+
+      {/* ─────────────── RECOMPENSAS ─────────────── */}
+      <div className="mt-16">
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-2xl font-light">Niveles de recompensa</h2>
+          <span className="text-sm text-tinta/50">
+            {comic.recompensas?.length ?? 0} definidos
+          </span>
+        </div>
+
+        {comic.recompensas?.length ? (
+          <ul className="mt-4 space-y-2">
+            {comic.recompensas.map((r) => (
+              <li key={r.id} className="rounded-xl bg-white shadow-sm">
+                {recEditandoId === r.id ? (
+                  // ─── MODO EDICIÓN ───
+                  <form onSubmit={guardarEdicionRec} className="p-5 space-y-3">
+                    <label className="block">
+                      Título
+                      <input
+                        required
+                        value={recEditForm.titulo}
+                        onChange={(e) => setRecEditForm({ ...recEditForm, titulo: e.target.value })}
+                        className={`${campo} mt-1`}
+                      />
+                    </label>
+                    <label className="block">
+                      Descripción
+                      <textarea
+                        required
+                        rows={2}
+                        value={recEditForm.descripcion}
+                        onChange={(e) => setRecEditForm({ ...recEditForm, descripcion: e.target.value })}
+                        className={`${campo} mt-1`}
+                      />
+                    </label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block">
+                        Monto mínimo (CLP)
+                        <input
+                          type="number"
+                          min="1"
+                          required
+                          value={recEditForm.monto_minimo}
+                          onChange={(e) => setRecEditForm({ ...recEditForm, monto_minimo: e.target.value })}
+                          className={`${campo} mt-1`}
+                        />
+                      </label>
+                      <label className="block">
+                        Stock (opcional)
+                        <input
+                          type="number"
+                          min="1"
+                          value={recEditForm.stock}
+                          onChange={(e) => setRecEditForm({ ...recEditForm, stock: e.target.value })}
+                          className={`${campo} mt-1`}
+                          placeholder="Sin límite si se deja vacío"
+                        />
+                      </label>
+                    </div>
+                    <div className="flex gap-3">
+                      <Boton type="submit" className="py-2">Guardar</Boton>
+                      <button
+                        type="button"
+                        onClick={() => setRecEditandoId(null)}
+                        className="text-sm text-tinta/60 hover:text-violeta"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  // ─── MODO LECTURA ───
+                  <div className="px-5 py-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium">
+                          {r.titulo} · desde {clp(r.monto_minimo)}
+                        </p>
+                        <p className="mt-1 text-sm text-tinta/60">{r.descripcion}</p>
+                        {r.stock != null && (
+                          <p className="mt-1 text-xs text-tinta/50">Stock: {r.stock}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-sm">
+                        <button
+                          onClick={() => iniciarEdicionRec(r)}
+                          className="text-violeta hover:underline"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => eliminarRecompensa(r)}
+                          className="text-coral hover:underline"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-4 text-tinta/60">Aún no has definido recompensas.</p>
+        )}
+
+        <form onSubmit={agregarRecompensa} className="mt-6 rounded-2xl bg-white p-6 shadow-sm">
+          <h3 className="text-lg font-light">Agregar recompensa</h3>
+          <div className="mt-4 space-y-4">
+            <label className="block">
+              Título
+              <input
+                required
+                value={recForm.titulo}
+                onChange={(e) => setRecForm({ ...recForm, titulo: e.target.value })}
+                className={`${campo} mt-1`}
+                placeholder="Ej: Fan, Coleccionista"
+              />
+            </label>
+            <label className="block">
+              Descripción
+              <textarea
+                required
+                rows={2}
+                value={recForm.descripcion}
+                onChange={(e) => setRecForm({ ...recForm, descripcion: e.target.value })}
+                className={`${campo} mt-1`}
+                placeholder="Qué incluye esta recompensa…"
+              />
+            </label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                Monto mínimo (CLP)
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={recForm.monto_minimo}
+                  onChange={(e) => setRecForm({ ...recForm, monto_minimo: e.target.value })}
+                  className={`${campo} mt-1`}
+                />
+              </label>
+              <label className="block">
+                Stock (opcional)
+                <input
+                  type="number"
+                  min="1"
+                  value={recForm.stock}
+                  onChange={(e) => setRecForm({ ...recForm, stock: e.target.value })}
+                  className={`${campo} mt-1`}
+                  placeholder="Sin límite si lo dejás vacío"
+                />
+              </label>
+            </div>
+            {recError && <p className="text-sm text-coral">{recError}</p>}
+            <Boton type="submit" disabled={recEnviando}>
+              {recEnviando ? 'Agregando…' : 'Agregar recompensa'}
+            </Boton>
+          </div>
+        </form>
+      </div>
     </section>
   )
 }
