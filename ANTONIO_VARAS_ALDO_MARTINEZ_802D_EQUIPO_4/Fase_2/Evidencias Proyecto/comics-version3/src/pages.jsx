@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect  } from 'react'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Boton, ComicCard, Portada, SelectorComics, clp } from './components'
 import { GENEROS } from './data'
 import { useStore } from './store'
 import { registrarUsuario, crearCapitulo, crearRecompensa,  actualizarCapitulo, 
-          eliminarCapituloApi, actualizarRecompensa, eliminarRecompensaApi, actualizarComic, } from './api'
+          eliminarCapituloApi, actualizarRecompensa, eliminarRecompensaApi, actualizarComic, 
+          subirPaginaAvance, listarAvance, eliminarPaginaAvanceApi, } from './api'
 
 const campo = 'w-full rounded-xl bg-white px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-violeta'
 const chip = (on) => `rounded-full px-4 py-2 text-sm transition-colors ${on ? 'bg-violeta text-white' : 'bg-white hover:bg-violeta/15'}`
@@ -47,6 +48,25 @@ export function Detalle() {
   const nav = useNavigate()
   const [monto, setMonto] = useState(12)
   const c = comics.find((x) => String(x.id) === id)
+
+  const [paginasAvance, setPaginasAvance] = useState([])
+  const [avanceError, setAvanceError] = useState('')
+  const [cargandoAvance, setCargandoAvance] = useState(false)
+
+  useEffect(() => {
+    if (!user || !c) return
+    setCargandoAvance(true)
+    listarAvance(c.id)
+      .then((data) => setPaginasAvance(data))
+      .catch((err) => {
+        // 403 → no tiene permiso, es esperado
+        if (err.status === 403) {
+          setAvanceError('Apoya el proyecto para ver el avance.')
+        }
+      })
+      .finally(() => setCargandoAvance(false))
+  }, [user, c?.id])
+
   if (!c) return <p className="px-6 pb-24 md:px-20">No encontramos este cómic. <Link to="/explorar" className="text-violeta">Volver a explorar</Link></p>
 
   const mio = user?.email === c.creador
@@ -55,6 +75,9 @@ export function Detalle() {
   const pct = Math.round((c.recaudado / c.meta) * 100)
   const tiles = c.avance.length ? c.avance : [0, 1, 2, 3].map((i) => null)
   const subir = () => { const t = window.prompt('Título del capítulo'); if (t) addCapitulo(c.id, t) }
+
+
+
 
   return (
     <section className="mx-auto max-w-7xl px-6 pb-24 md:px-20">
@@ -93,7 +116,7 @@ export function Detalle() {
             </ul>
           ) : <p className="mt-4 text-tinta/60">Aún no hay capítulos publicados.{mio && ' Sube el primero con el botón de la derecha.'}</p>}
 
-          <h2 className="mt-12 text-2xl font-light">Avance exclusivo</h2>
+
 
           {c.recompensas?.length > 0 && (
             <div className="mt-12">
@@ -114,15 +137,38 @@ export function Detalle() {
             </div>
           )}
 
-          <p className="mt-1 text-sm text-tinta/60">{visible ? 'Gracias por apoyar. Este avance es solo para ti.' : 'Apoya el proyecto para ver páginas del siguiente capítulo.'}</p>
-          <div className="relative mt-4">
-            <div className={`grid grid-cols-2 gap-3 sm:grid-cols-4 ${visible ? '' : 'pointer-events-none blur-md select-none'}`}>
-              {tiles.map((t, i) => t
-                ? <img key={i} src={t} alt={`Avance, página ${i + 1}`} className="aspect-[3/4] w-full rounded-xl object-cover" />
-                : <div key={i} className={`aspect-[3/4] rounded-xl bg-linear-to-br ${c.bg}`} />)}
+          <h2 className="mt-12 text-2xl font-light">Avance exclusivo</h2>
+          <p className="mt-1 text-sm text-tinta/60">
+            {paginasAvance.length
+              ? 'Gracias por apoyar. Este avance es solo para ti.'
+              : avanceError || 'Apoya el proyecto para ver páginas del siguiente capítulo.'}
+          </p>
+
+          {cargandoAvance ? (
+            <p className="mt-4 text-tinta/60">Cargando avance…</p>
+          ) : paginasAvance.length > 0 ? (
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {paginasAvance.map((p) => (
+                <img
+                  key={p.id}
+                  src={p.img}
+                  alt={`Avance ${p.orden + 1}`}
+                  className="aspect-[3/4] w-full rounded-xl object-cover"
+                />
+              ))}
             </div>
-            {!visible && <p className="absolute inset-0 grid place-items-center text-center text-lg">Apoya para desbloquear</p>}
-          </div>
+          ) : (
+            <div className="relative mt-4">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 pointer-events-none blur-md select-none">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className={`aspect-[3/4] rounded-xl bg-linear-to-br ${c.bg}`} />
+                ))}
+              </div>
+              <p className="absolute inset-0 grid place-items-center text-center text-lg">
+                Apoya para desbloquear
+              </p>
+            </div>
+          )}
         </div>
 
 
@@ -164,6 +210,8 @@ export function Publicar() {
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState('')
 
+  const [avanceFiles, setAvanceFiles] = useState([])
+
   const [f, setF] = useState({
     titulo: '',
     autor: '',
@@ -204,15 +252,21 @@ export function Publicar() {
 
     try {
       const nuevoId = await addComic(
-        {
-          ...f,
-          meta: Number(f.meta),
-          dias: Number(f.dias),
+        { ...f, meta: Number(f.meta), dias: Number(f.dias),
           numero_paginas: Number(f.numero_paginas) || 0,
-          generos: f.generos.length ? f.generos : ['Aventura'],
-        },
+          generos: f.generos.length ? f.generos : ['Aventura'] },
         portadaFile,
       )
+
+      // 👇 Subir avance
+      for (const file of avanceFiles) {
+        try {
+          await subirPaginaAvance(nuevoId, file)
+        } catch (err) {
+          console.error('[subir avance]', err)
+        }
+      }
+
       nav('/comic/' + nuevoId)
     } catch (err) {
       const mensaje =
@@ -314,7 +368,7 @@ export function Publicar() {
           </label>
         </div>
 
-        {/* 👇 Cambio: guardamos el File, no base64 */}
+        
         <label className="block">
           Portada
           <input type="file" accept="image/*" onChange={onPortada} className="mt-1 block text-sm" />
@@ -328,6 +382,22 @@ export function Publicar() {
             {error}
           </p>
         )}
+
+        <label className="block">
+          Páginas de avance (solo las ven quienes apoyan)
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(e) => setAvanceFiles(Array.from(e.target.files))}
+            className="mt-1 block text-sm"
+          />
+          {avanceFiles.length > 0 && (
+            <p className="mt-2 text-sm text-tinta/60">
+              {avanceFiles.length} página(s) seleccionada(s)
+            </p>
+          )}
+        </label>
 
         <div className="flex flex-wrap items-center gap-3 pt-2">
           <Boton type="submit" disabled={enviando}>
@@ -827,6 +897,20 @@ export function PanelComic() {
   const [comicEnviando, setComicEnviando] = useState(false)
 
 
+  // Estados de avance
+  const [paginasAvance, setPaginasAvance] = useState([])
+  const [cargandoAvance, setCargandoAvance] = useState(true)
+  const [subiendoAvance, setSubiendoAvance] = useState(false)
+
+  // Cargar avance al montar (o cuando cambia el cómic)
+  useEffect(() => {
+    if (!comic) return
+    listarAvance(comic.id)
+      .then((data) => setPaginasAvance(data))
+      .catch((err) => console.error('[listar avance]', err))
+      .finally(() => setCargandoAvance(false))
+  }, [comic?.id])
+
   if (!user) return <Navigate to="/login" replace />
   if (!comic) {
     return (
@@ -1071,6 +1155,37 @@ export function PanelComic() {
       setComicError(mensaje)
     } finally {
       setComicEnviando(false)
+    }
+  }
+
+  // ─── Handlers de avance comic ───
+
+  const subirAvance = async (e) => {
+    const files = Array.from(e.target.files)
+    if (!files.length) return
+
+    setSubiendoAvance(true)
+    for (const file of files) {
+      try {
+        const nueva = await subirPaginaAvance(comic.id, file)
+        setPaginasAvance((prev) => [...prev, nueva])
+      } catch (err) {
+        console.error('[subir avance]', err)
+        alert('Error al subir una página de avance.')
+      }
+    }
+    setSubiendoAvance(false)
+    e.target.value = '' // reset input
+  }
+
+  const eliminarPaginaAvance = async (paginaId) => {
+    if (!window.confirm('¿Eliminar esta página de avance?')) return
+    try {
+      await eliminarPaginaAvanceApi(paginaId)
+      setPaginasAvance((prev) => prev.filter((p) => p.id !== paginaId))
+    } catch (err) {
+      console.error('[eliminar avance]', err)
+      alert('Error al eliminar la página.')
     }
   }
 
@@ -1549,6 +1664,54 @@ export function PanelComic() {
             </Boton>
           </div>
         </form>
+      </div>
+
+
+      {/* ─────────────── PÁGINAS DE AVANCE ─────────────── */}
+      <div className="mt-16">
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-2xl font-light">Páginas de avance</h2>
+          <span className="text-sm text-tinta/50">
+            {paginasAvance.length} página(s)
+          </span>
+        </div>
+        <p className="mt-1 text-sm text-tinta/60">
+          Estas páginas solo las ven quienes hayan donado.
+        </p>
+
+        {cargandoAvance ? (
+          <p className="mt-4 text-tinta/60">Cargando…</p>
+        ) : paginasAvance.length === 0 ? (
+          <p className="mt-4 text-tinta/60">Aún no has subido páginas de avance.</p>
+        ) : (
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {paginasAvance.map((p) => (
+              <div key={p.id} className="relative overflow-hidden rounded-xl bg-white shadow-sm">
+                <img src={p.img} alt={`Avance ${p.orden + 1}`} className="aspect-[3/4] w-full object-cover" />
+                <button
+                  onClick={() => eliminarPaginaAvance(p.id)}
+                  className="absolute right-2 top-2 rounded-full bg-coral px-2.5 py-1 text-xs text-white hover:bg-coral/90"
+                >
+                  Eliminar
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-4">
+          <label className="inline-block cursor-pointer rounded-full bg-violeta px-5 py-2.5 text-sm text-white hover:bg-violeta/90">
+            {subiendoAvance ? 'Subiendo…' : 'Subir páginas'}
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={subirAvance}
+              disabled={subiendoAvance}
+              className="hidden"
+            />
+          </label>
+        </div>
       </div>
     </section>
   )

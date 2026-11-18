@@ -367,10 +367,46 @@ export async function actualizarMiPerfilApi(datos, avatarFile = null) {
     id: data.id,
     username: data.username,
     email: data.email,
-    nombre: data.nickname,    // 👈 mapeo clav
+    nombre: data.nickname,   
     edad: data.edad,
     generos: data.generos,
     leidos: data.leidos,
     es_creador: data.es_creador,
   }
+}
+
+
+// =====================================================================
+// PÁGINAS DE AVANCE
+// =====================================================================
+
+export async function subirPaginaAvance(comicId, file) {
+  const form = new FormData()
+  form.append('imagen', file)
+
+  const res = await fetchConAuth(`${API_URL}/comics/${comicId}/avance/`, {
+    method: 'POST',
+    body: form,
+  })
+  const data = await leerJSON(res)
+  if (!res.ok) throw { status: res.status, errores: data }
+  return data
+}
+
+export async function listarAvance(comicId) {
+  const res = await fetchConAuth(`${API_URL}/comics/${comicId}/avance/`)
+  const data = await leerJSON(res)
+  if (!res.ok) throw { status: res.status, errores: data }
+  return data
+}
+
+export async function eliminarPaginaAvanceApi(paginaId) {
+  const res = await fetchConAuth(`${API_URL}/avance/${paginaId}/`, {
+    method: 'DELETE',
+  })
+  if (!res.ok && res.status !== 204) {
+    const err = await leerJSON(res).catch(() => ({}))
+    throw { status: res.status, errores: err }
+  }
+  return true
 }

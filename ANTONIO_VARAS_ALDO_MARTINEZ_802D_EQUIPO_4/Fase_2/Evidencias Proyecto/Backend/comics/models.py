@@ -431,3 +431,31 @@ class Valoracion(models.Model):
         return f"{self.usuario.username} → {self.comic.titulo}: {self.puntuacion}/5"
     
     
+    
+# =====================================================================
+# AVANCES COMIC
+# =====================================================================
+
+
+class PaginaAvance(models.Model):
+    """Página de avance de un cómic (preview del siguiente capítulo).
+    Solo visible para el autor y para usuarios que hayan donado."""
+    comic = models.ForeignKey(
+        Comic,
+        on_delete=models.CASCADE,
+        related_name='paginas_avance',
+        verbose_name="Cómic"
+    )
+    imagen = models.ImageField(upload_to='avances/', verbose_name="Imagen")
+    orden = models.PositiveSmallIntegerField(default=0, verbose_name="Orden")
+    fecha_subida = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de subida")
+
+    class Meta:
+        verbose_name = "Página de avance"
+        verbose_name_plural = "Páginas de avance"
+        ordering = ['comic', 'orden']
+
+    def __str__(self):
+        return f"{self.comic.titulo} · página {self.orden + 1}"
+    
+    

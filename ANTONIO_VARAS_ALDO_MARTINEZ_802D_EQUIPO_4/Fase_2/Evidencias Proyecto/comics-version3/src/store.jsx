@@ -57,6 +57,12 @@ function normalizar(c) {
     valoracion: Number(c.valoracion_promedio) || 0,
     totalValoraciones: c.total_valoraciones || 0,
     creador: c.creador || null,
+
+    paginasAvance: (c.paginas_avance ?? []).map((p) => ({
+      id: p.id,
+      img: p.img,
+      orden: p.orden,
+    })),
   }
 }
 

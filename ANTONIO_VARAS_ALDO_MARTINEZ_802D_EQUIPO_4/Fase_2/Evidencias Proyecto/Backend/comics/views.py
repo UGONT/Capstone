@@ -2,11 +2,11 @@ from django.shortcuts import render
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly
 # comics/views.py
 from rest_framework import viewsets, mixins, status
-from .models import Comic, ComicExterno, Etiqueta, Perfil
+from .models import Comic, ComicExterno, Etiqueta, Perfil, PaginaAvance, Donacion
 from .serializers import (
     ComicSerializer, ComicExternoSerializer, EtiquetaSerializer, 
     RegistroSerializer, LoginSerializer, ComicCreateSerializer, 
-    CapituloCreateSerializer, NivelRecompensaSerializer, Capitulo, NivelRecompensa, ComicUpdateSerializer, PerfilUpdateSerializer)
+    CapituloCreateSerializer, NivelRecompensaSerializer, Capitulo, NivelRecompensa, ComicUpdateSerializer, PerfilUpdateSerializer, PaginaAvanceSerializer)
 
 
 
@@ -111,6 +111,61 @@ class ComicViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save(comic=comic)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    # ----- Endpoint: /api/comics/{id}/avance/ -----
+    @action(detail=True, methods=['get', 'post'],
+            permission_classes=[IsAuthenticated],
+            parser_classes=[MultiPartParser, FormParser])
+    def avance(self, request, pk=None):
+        """
+        GET  → lista las páginas de avance (solo autor o donante)
+        POST → sube una nueva página (solo autor)
+        """
+        comic = self.get_object()
+        es_autor = comic.autores.filter(autor=request.user).exists()
+
+        # GET
+        if request.method == 'GET':
+            if not es_autor:
+                # Verificar si donó
+                dono = Donacion.objects.filter(
+                    comic=comic,
+                    usuario=request.user,
+                    estado_pago=Donacion.EstadoPago.COMPLETADO,
+                ).exists()
+                if not dono:
+                    return Response(
+                        {'error': 'Solo autores y donantes pueden ver el avance.'},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+
+            paginas = comic.paginas_avance.all()
+            return Response(PaginaAvanceSerializer(paginas, many=True).data)
+
+        # POST
+        if not es_autor:
+            return Response(
+                {'error': 'Solo el autor puede subir páginas de avance.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        imagen = request.FILES.get('imagen')
+        if not imagen:
+            return Response(
+                {'error': 'Falta el archivo "imagen".'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        orden = comic.paginas_avance.count()
+        pagina = PaginaAvance.objects.create(
+            comic=comic,
+            imagen=imagen,
+            orden=orden,
+        )
+        return Response(
+            PaginaAvanceSerializer(pagina).data,
+            status=status.HTTP_201_CREATED,
+        )
     
 class ComicExternoViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     """GET /api/comics-externos/ — lista de cómics para elegir."""
@@ -309,3 +364,19 @@ class MiPerfilView(APIView):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    
+class PaginaAvanceViewSet(viewsets.ModelViewSet):
+    """
+    DELETE /api/avance/{id}/  → borrar una página (solo el autor)
+    """
+    serializer_class = PaginaAvanceSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = PaginaAvance.objects.all().select_related('comic')
+    http_method_names = ['delete']
+
+    def destroy(self, request, *args, **kwargs):
+        pagina = self.get_object()
+        if not pagina.comic.autores.filter(autor=request.user).exists():
+            raise PermissionDenied('No eres autor de este cómic.')
+        return super().destroy(request, *args, **kwargs)

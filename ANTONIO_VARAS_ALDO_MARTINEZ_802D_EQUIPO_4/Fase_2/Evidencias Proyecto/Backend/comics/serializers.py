@@ -1,6 +1,6 @@
 # comics/serializers.py
 from rest_framework import serializers
-from .models import Perfil, Comic, ComicAutor, Etiqueta, ComicExterno, ComicEtiqueta, Capitulo, NivelRecompensa
+from .models import Perfil, Comic, ComicAutor, Etiqueta, ComicExterno, ComicEtiqueta, Capitulo, NivelRecompensa, PaginaAvance   
 
 from django.contrib.auth.models import User
 
@@ -370,3 +370,11 @@ class PerfilUpdateSerializer(serializers.ModelSerializer):
             instance.comics_leidos.set(comics_obj)
 
         return instance
+    
+    
+class PaginaAvanceSerializer(serializers.ModelSerializer):
+    img = serializers.ImageField(source='imagen', read_only=True)
+
+    class Meta:
+        model = PaginaAvance
+        fields = ['id', 'img', 'orden', 'fecha_subida']
