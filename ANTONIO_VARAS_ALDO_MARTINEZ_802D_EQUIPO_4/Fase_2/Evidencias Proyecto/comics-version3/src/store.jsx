@@ -1,6 +1,7 @@
 // src/store.jsx
 import { createContext, useContext, useEffect, useState } from 'react'
-import { fetchComics, fetchEtiquetas,fetchMe, loginApi, logoutApi, crearComic, fetchComicDetalle, actualizarMiPerfilApi  } from './api'
+import { fetchComics, fetchEtiquetas,fetchMe, loginApi, logoutApi, crearComic, 
+        fetchComicDetalle, actualizarMiPerfilApi, crearDonacion, fetchMisDonaciones,  } from './api'
 import { setCampana, colorDe } from './data'
 
 const Ctx = createContext()
@@ -74,9 +75,7 @@ export function StoreProvider({ children }) {
   const [comics, setComics] = useState([])
   const [cargandoComics, setCargandoComics] = useState(true)
   const [error, setError] = useState(null)
-  const [apoyos, setApoyos] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('vi_apoyos')) ?? {} } catch { return {} }
-  })
+  const [misDonaciones, setMisDonaciones] = useState([])
 
   const [etiquetas, setEtiquetas] = useState([])
   const [cargandoEtiquetas, setCargandoEtiquetas] = useState(true)
@@ -130,8 +129,14 @@ export function StoreProvider({ children }) {
   }, [])
 
   useEffect(() => {
-    try { localStorage.setItem('vi_apoyos', JSON.stringify(apoyos)) } catch {}
-  }, [apoyos])
+    if (!user) {
+      setMisDonaciones([])
+      return
+    }
+    fetchMisDonaciones()
+      .then(setMisDonaciones)
+      .catch((err) => console.error('[mis donaciones]', err))
+  }, [user])
 
   // 🔐 Login real
   const login = async (email, password) => {
@@ -165,22 +170,13 @@ export function StoreProvider({ children }) {
     return nuevoComic.id   // devolvemos el ID real del backend
   }
 
-  const aporteDe = (id) =>
-    user ? apoyos[`${user.email}:${id}`] || 0 : 0
 
-  const apoyar = (id, monto) => {
-    setComics((p) =>
-      p.map((c) =>
-        c.id === id
-          ? { ...c, recaudado: c.recaudado + monto, apoyos: c.apoyos + 1 }
-          : c
-      )
-    )
-    setApoyos((a) => ({
-      ...a,
-      [`${user.email}:${id}`]: (a[`${user.email}:${id}`] || 0) + monto,
-    }))
-  }
+
+
+  const aporteDe = (comicId) =>
+    misDonaciones
+      .filter((d) => d.comic === comicId && d.estado_pago === 'completado')
+      .reduce((sum, d) => sum + d.monto, 0)
 
   
 
@@ -210,14 +206,23 @@ export function StoreProvider({ children }) {
     return normalizado
   }
 
+  const donar = async (comicId, datos) => {
+    const donacion = await crearDonacion(comicId, datos)
+    setMisDonaciones((prev) => [donacion, ...prev])
+    await recargarComic(comicId)
+    return donacion
+  }
+
+
   return (
     <Ctx.Provider
       value={{
         user, cargandoUser,
         comics, cargandoComics, error,
         etiquetas, cargandoEtiquetas,
+        misDonaciones,
         login, logout, actualizarPerfil,
-        addComic, aporteDe, apoyar, addCapitulo,
+        addComic, aporteDe, donar, addCapitulo,
         recargarComic,
       }}
     >

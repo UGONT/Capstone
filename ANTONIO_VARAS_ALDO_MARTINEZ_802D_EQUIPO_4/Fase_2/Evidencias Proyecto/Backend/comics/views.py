@@ -6,7 +6,8 @@ from .models import Comic, ComicExterno, Etiqueta, Perfil, PaginaAvance, Donacio
 from .serializers import (
     ComicSerializer, ComicExternoSerializer, EtiquetaSerializer, 
     RegistroSerializer, LoginSerializer, ComicCreateSerializer, 
-    CapituloCreateSerializer, NivelRecompensaSerializer, Capitulo, NivelRecompensa, ComicUpdateSerializer, PerfilUpdateSerializer, PaginaAvanceSerializer)
+    CapituloCreateSerializer, NivelRecompensaSerializer, Capitulo, NivelRecompensa, 
+    ComicUpdateSerializer, PerfilUpdateSerializer, PaginaAvanceSerializer, DonacionSerializer, DonacionCreateSerializer)
 
 
 
@@ -380,3 +381,31 @@ class PaginaAvanceViewSet(viewsets.ModelViewSet):
         if not pagina.comic.autores.filter(autor=request.user).exists():
             raise PermissionDenied('No eres autor de este cómic.')
         return super().destroy(request, *args, **kwargs)
+    
+
+class DonacionViewSet(viewsets.ModelViewSet):
+    """
+    GET  /api/donaciones/  → mis donaciones (logueado)
+    POST /api/donaciones/  → crear (simulada, completada al instante)
+    """
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'post']
+
+    def get_queryset(self):
+        return Donacion.objects.filter(
+            usuario=self.request.user
+        ).select_related('comic', 'nivel_recompensa').order_by('-fecha')
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return DonacionCreateSerializer
+        return DonacionSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        donacion = serializer.save()
+
+        # Devolvemos con el serializer de lectura
+        salida = DonacionSerializer(donacion)
+        return Response(salida.data, status=status.HTTP_201_CREATED)

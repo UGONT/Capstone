@@ -1,8 +1,10 @@
 # comics/serializers.py
 from rest_framework import serializers
-from .models import Perfil, Comic, ComicAutor, Etiqueta, ComicExterno, ComicEtiqueta, Capitulo, NivelRecompensa, PaginaAvance   
+from .models import Perfil, Comic, ComicAutor, Etiqueta, ComicExterno, ComicEtiqueta, Capitulo, NivelRecompensa, PaginaAvance, Donacion      
 
 from django.contrib.auth.models import User
+
+from django.utils import timezone
 
 class ComicExternoSerializer(serializers.ModelSerializer):
     class Meta:
@@ -173,6 +175,8 @@ class ComicSerializer(serializers.ModelSerializer):
     generos = serializers.SerializerMethodField()
     capitulos = CapituloCreateSerializer(many=True, read_only=True)         
     recompensas = NivelRecompensaSerializer(many=True, read_only=True) 
+    
+    apoyos = serializers.SerializerMethodField()
 
     class Meta:
         model = Comic
@@ -196,6 +200,7 @@ class ComicSerializer(serializers.ModelSerializer):
             'fecha_fin',
             'capitulos', 
             'recompensas',
+            'apoyos',
         ]
 
     def get_autor(self, obj):
@@ -220,6 +225,11 @@ class ComicSerializer(serializers.ModelSerializer):
             }
             for ce in obj.etiquetas.select_related('etiqueta').all()
         ]
+
+    def get_apoyos(self, obj):
+        return obj.donaciones.filter(
+            estado_pago=Donacion.EstadoPago.COMPLETADO
+        ).count()
         
         
 class RegistroSerializer(serializers.Serializer):
@@ -378,3 +388,79 @@ class PaginaAvanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = PaginaAvance
         fields = ['id', 'img', 'orden', 'fecha_subida']
+        
+        
+class DonacionSerializer(serializers.ModelSerializer):
+    """Para GET (listar mis donaciones)."""
+    comic_titulo = serializers.CharField(source='comic.titulo', read_only=True)
+    comic_img = serializers.ImageField(source='comic.portada', read_only=True)
+    nivel_recompensa_titulo = serializers.CharField(
+        source='nivel_recompensa.titulo', read_only=True
+    )
+
+    class Meta:
+        model = Donacion
+        fields = [
+            'id', 'comic', 'comic_titulo', 'comic_img',
+            'monto', 'fecha', 'estado_pago',
+            'es_anonima', 'mensaje', 'direccion_envio',
+            'nivel_recompensa', 'nivel_recompensa_titulo',
+        ]
+
+
+class DonacionCreateSerializer(serializers.ModelSerializer):
+    """Para POST (crear donación simulada)."""
+    class Meta:
+        model = Donacion
+        fields = ['comic', 'monto', 'es_anonima', 'mensaje',
+                  'direccion_envio', 'nivel_recompensa']
+        extra_kwargs = {
+            'nivel_recompensa': {'required': False, 'allow_null': True},
+            'mensaje': {'required': False},
+            'direccion_envio': {'required': False},
+            'es_anonima': {'required': False},
+        }
+
+    def validate(self, data):
+        comic = data['comic']
+
+        # El cómic debe aceptar donaciones
+        if not comic.crowdfunding_activo:
+            raise serializers.ValidationError(
+                {'comic': 'Este cómic no está aceptando donaciones.'}
+            )
+        if comic.estado not in [Comic.Estado.EN_CAMPANA, Comic.Estado.PUBLICADO]:
+            raise serializers.ValidationError(
+                {'comic': 'Este cómic no está en campaña activa.'}
+            )
+        if comic.fecha_fin and comic.fecha_fin < timezone.now():
+            raise serializers.ValidationError(
+                {'comic': 'La campaña ha terminado.'}
+            )
+        if data['monto'] < 1:
+            raise serializers.ValidationError(
+                {'monto': 'El monto debe ser mayor que cero.'}
+            )
+
+        # Auto-asignar recompensa si no viene y hay una que aplica
+        if not data.get('nivel_recompensa'):
+            recompensa = (
+                comic.recompensas
+                .filter(monto_minimo__lte=data['monto'])
+                .order_by('-monto_minimo')
+                .first()
+            )
+            if recompensa:
+                data['nivel_recompensa'] = recompensa
+
+        return data
+
+    def create(self, validated_data):
+        request = self.context['request']
+        # Modo simulado: se marca como completada al instante.
+        # Cuando se integre Transbank, este campo empieza en 'pendiente'.
+        return Donacion.objects.create(
+            usuario=request.user,
+            estado_pago=Donacion.EstadoPago.COMPLETADO,
+            **validated_data,
+        )

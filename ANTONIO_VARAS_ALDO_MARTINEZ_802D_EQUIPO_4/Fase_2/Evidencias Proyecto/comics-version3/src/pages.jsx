@@ -44,10 +44,17 @@ export function Explorar() {
 
 export function Detalle() {
   const { id } = useParams()
-  const { comics, user, aporteDe, apoyar, addCapitulo } = useStore()
+  const { comics, user, aporteDe, donar, addCapitulo, recargarComic  } = useStore()
   const nav = useNavigate()
-  const [monto, setMonto] = useState(12)
   const c = comics.find((x) => String(x.id) === id)
+
+  const [monto, setMonto] = useState(500)
+  const [esAnonima, setEsAnonima] = useState(false)
+  const [mensaje, setMensaje] = useState('')
+  const [direccion, setDireccion] = useState('')
+  const [donando, setDonando] = useState(false)
+  const [donacionError, setDonacionError] = useState('')
+  const [donacionExitosa, setDonacionExitosa] = useState(false)
 
   const [paginasAvance, setPaginasAvance] = useState([])
   const [avanceError, setAvanceError] = useState('')
@@ -76,7 +83,39 @@ export function Detalle() {
   const tiles = c.avance.length ? c.avance : [0, 1, 2, 3].map((i) => null)
   const subir = () => { const t = window.prompt('Título del capítulo'); if (t) addCapitulo(c.id, t) }
 
+  const donarComic = async () => {
+    if (!user) return nav('/login')
+    const montoNum = Number(monto)
+    if (montoNum < 1) return
 
+    setDonando(true)
+    setDonacionError('')
+    try {
+      await donar(c.id, {
+        monto: montoNum,
+        es_anonima: esAnonima,
+        mensaje,
+        direccion_envio: direccion,
+      })
+      setDonacionExitosa(true)
+      // Refrescar avance (ahora tiene permiso)
+      try {
+        const avance = await listarAvance(c.id)
+        setPaginasAvance(avance)
+        setAvanceError('')
+      } catch {
+        /* no es crítico */
+      }
+    } catch (err) {
+      const msg =
+        err.errores && typeof err.errores === 'object'
+          ? Object.values(err.errores).flat().join(' · ')
+          : 'Error al procesar la donación.'
+      setDonacionError(msg)
+    } finally {
+      setDonando(false)
+    }
+  }
 
 
   return (
@@ -175,26 +214,116 @@ export function Detalle() {
 
 
         <aside className="h-fit rounded-3xl bg-white p-7 shadow-xl shadow-tinta/10">
-          <p className="text-2xl">{clp(c.recaudado)} <span className="text-sm text-tinta/50">de {clp(c.meta)}</span></p>
-          <div className="mt-3 h-2.5 rounded-full bg-crema" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-            <div className="h-full rounded-full bg-violeta" style={{ width: Math.min(pct, 100) + '%' }} />
+          <p className="text-2xl">
+            {clp(c.recaudado)}{' '}
+            <span className="text-sm text-tinta/50">de {clp(c.meta)}</span>
+          </p>
+          <div className="mt-3 h-2.5 rounded-full bg-crema">
+            <div
+              className="h-full rounded-full bg-violeta"
+              style={{ width: Math.min(pct, 100) + '%' }}
+            />
           </div>
-          <p className="mt-2 text-xs text-tinta/50">{pct}% · {c.apoyos} personas apoyaron</p>
+          <p className="mt-2 text-xs text-tinta/50">
+            {pct}% · {c.apoyos} personas apoyaron
+          </p>
+
           {mio ? (
             <div className="mt-6 space-y-3">
               <Boton onClick={subir} className="w-full">Subir capítulo</Boton>
-              <p className="text-xs text-tinta/50">Esta es tu obra. Los lectores verán el capítulo en la lista.</p>
+              <p className="text-xs text-tinta/50">
+                Esta es tu obra. Los lectores verán el capítulo en la lista.
+              </p>
+            </div>
+          ) : donacionExitosa ? (
+            <div className="mt-6 rounded-xl bg-lima px-4 py-3 text-sm">
+              ¡Gracias por tu aporte de {clp(aporteDe(c.id))}! Ya podés ver el avance
+              exclusivo.
             </div>
           ) : (
             <div className="mt-6">
-              {aporte > 0 && <p className="mb-3 rounded-xl bg-lima px-4 py-2.5 text-sm">Apoyaste con {clp(aporte)}. Ya puedes ver el avance.</p>}
-              <div className="flex gap-2">{[12, 25, 50].map((m) => <button key={m} onClick={() => setMonto(m)} className={chip(monto === m)}>{clp(m)}</button>)}</div>
-              <label className="mt-3 block text-sm text-tinta/60">Otro monto
-                <input type="number" min="1" value={monto} onChange={(e) => setMonto(e.target.value)} className={`${campo} mt-1 bg-crema`} />
+              {aporte > 0 && (
+                <p className="mb-3 rounded-xl bg-lima px-4 py-2.5 text-sm">
+                  Apoyaste con {clp(aporte)}. Ya puedes ver el avance.
+                </p>
+              )}
+
+              {/* Montos rápidos */}
+              <div className="flex flex-wrap gap-2">
+                {[500, 1000, 2000].map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setMonto(m)}
+                    className={chip(Number(monto) === m)}
+                  >
+                    {clp(m)}
+                  </button>
+                ))}
+              </div>
+
+              {/* Monto libre */}
+              <label className="mt-3 block text-sm text-tinta/60">
+                Otro monto (CLP)
+                <input
+                  type="number"
+                  min="1"
+                  value={monto}
+                  onChange={(e) => setMonto(e.target.value)}
+                  className={`${campo} mt-1 bg-crema`}
+                />
               </label>
-              <Boton className="mt-4 w-full" onClick={() => (user ? Number(monto) > 0 && apoyar(c.id, Number(monto)) : nav('/login'))}>
-                {user ? 'Apoyar proyecto' : 'Inicia sesión para apoyar'}
+
+              {/* Mensaje */}
+              <label className="mt-3 block text-sm text-tinta/60">
+                Mensaje (opcional)
+                <textarea
+                  rows={2}
+                  value={mensaje}
+                  onChange={(e) => setMensaje(e.target.value)}
+                  className={`${campo} mt-1 bg-crema`}
+                  placeholder="¡Mucho éxito!"
+                />
+              </label>
+
+              {/* Dirección de envío */}
+              <label className="mt-3 block text-sm text-tinta/60">
+                Dirección de envío (opcional, si querés recompensa física)
+                <input
+                  value={direccion}
+                  onChange={(e) => setDireccion(e.target.value)}
+                  className={`${campo} mt-1 bg-crema`}
+                  placeholder="Calle, número, ciudad"
+                />
+              </label>
+
+              {/* Anónima */}
+              <label className="mt-3 flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={esAnonima}
+                  onChange={(e) => setEsAnonima(e.target.checked)}
+                />
+                Donar de forma anónima
+              </label>
+
+              {/* Botón */}
+              <Boton
+                className="mt-4 w-full"
+                onClick={donarComic}
+                disabled={donando}
+              >
+                {donando
+                  ? 'Procesando…'
+                  : user
+                  ? `Apoyar con ${clp(Number(monto) || 0)}`
+                  : 'Inicia sesión para apoyar'}
               </Boton>
+
+              {donacionError && (
+                <p className="mt-3 rounded-lg bg-coral/20 px-3 py-2 text-sm text-coral">
+                  {donacionError}
+                </p>
+              )}
             </div>
           )}
         </aside>
@@ -879,13 +1008,13 @@ export function PanelComic() {
   const [capEditForm, setCapEditForm] = useState({ titulo: '', contenido: '', es_gratis: true })
 
   // Estados para recompensa
-  const [recForm, setRecForm] = useState({ titulo: '', descripcion: '', monto_minimo: 5000, stock: '' })
+  const [recForm, setRecForm] = useState({ titulo: '', descripcion: '', monto_minimo: 500, stock: '' })
   const [recEnviando, setRecEnviando] = useState(false)
   const [recError, setRecError] = useState('')
 
   //  edición inline
   const [recEditandoId, setRecEditandoId] = useState(null)
-  const [recEditForm, setRecEditForm] = useState({ titulo: '', descripcion: '', monto_minimo: 5000, stock: '' })
+  const [recEditForm, setRecEditForm] = useState({ titulo: '', descripcion: '', monto_minimo: 500, stock: '' })
 
 
   // Estados para editar el cómic completo
@@ -1188,6 +1317,7 @@ export function PanelComic() {
       alert('Error al eliminar la página.')
     }
   }
+
 
   return (
     <section className="mx-auto max-w-5xl px-6 pb-24 md:px-20">

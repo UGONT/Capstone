@@ -410,3 +410,21 @@ export async function eliminarPaginaAvanceApi(paginaId) {
   }
   return true
 }
+
+
+export async function crearDonacion(comicId, datos) {
+  const res = await fetchConAuth(`${API_URL}/donaciones/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ comic: comicId, ...datos }),
+  })
+  const data = await leerJSON(res)
+  if (!res.ok) throw { status: res.status, errores: data }
+  return data
+}
+
+export async function fetchMisDonaciones() {
+  const res = await fetchConAuth(`${API_URL}/donaciones/`)
+  if (!res.ok) throw new Error(`Error ${res.status}`)
+  return res.json()
+}
