@@ -13,7 +13,8 @@ from .views import (
     NivelRecompensaViewSet,
     MiPerfilView,
     PaginaAvanceViewSet,
-    DonacionViewSet
+    DonacionViewSet,
+    PaginaCapituloViewSet
 )
 
 router = DefaultRouter()
@@ -24,6 +25,7 @@ router.register(r'capitulos', CapituloViewSet, basename='capitulo')
 router.register(r'recompensas', NivelRecompensaViewSet, basename='recompensa')
 router.register(r'avance', PaginaAvanceViewSet, basename='pagina-avance')
 router.register(r'donaciones', DonacionViewSet, basename='donacion')
+router.register(r'paginas-capitulo', PaginaCapituloViewSet, basename='pagina-capitulo')
 
 urlpatterns = [
     path('perfil/gustos/', actualizar_mis_gustos, name='actualizar-gustos'),

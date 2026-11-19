@@ -459,3 +459,25 @@ class PaginaAvance(models.Model):
         return f"{self.comic.titulo} · página {self.orden + 1}"
     
     
+
+
+
+class PaginaCapitulo(models.Model):
+    """Página (imagen) de un capítulo. Solo las puede ver quien tenga permiso."""
+    capitulo = models.ForeignKey(
+        Capitulo,
+        on_delete=models.CASCADE,
+        related_name='paginas',
+        verbose_name="Capítulo"
+    )
+    imagen = models.ImageField(upload_to='capitulos/', verbose_name="Imagen")
+    orden = models.PositiveSmallIntegerField(default=0, verbose_name="Orden")
+    fecha_subida = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de subida")
+
+    class Meta:
+        verbose_name = "Página de capítulo"
+        verbose_name_plural = "Páginas de capítulo"
+        ordering = ['capitulo', 'orden']
+
+    def __str__(self):
+        return f"{self.capitulo.titulo} · página {self.orden + 1}"

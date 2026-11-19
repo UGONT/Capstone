@@ -1,6 +1,6 @@
 # comics/serializers.py
 from rest_framework import serializers
-from .models import Perfil, Comic, ComicAutor, Etiqueta, ComicExterno, ComicEtiqueta, Capitulo, NivelRecompensa, PaginaAvance, Donacion      
+from .models import Perfil, Comic, ComicAutor, Etiqueta, ComicExterno, ComicEtiqueta, Capitulo, NivelRecompensa, PaginaAvance, Donacion, PaginaCapitulo      
 
 from django.contrib.auth.models import User
 
@@ -143,10 +143,21 @@ class ComicUpdateSerializer(serializers.ModelSerializer):
 # =====================================================================
 
 class CapituloCreateSerializer(serializers.ModelSerializer):
+    
+    paginas_count = serializers.SerializerMethodField()
+
+    
     class Meta:
         model = Capitulo
-        fields = ['id', 'numero', 'titulo', 'contenido', 'fecha_publicacion', 'es_gratis']
-        read_only_fields = ['id']
+        fields = ['id', 'numero', 'titulo', 'contenido',
+                  'fecha_publicacion', 'es_gratis', 'paginas_count']
+        read_only_fields = ['id', 'paginas_count']
+        
+        
+    def get_paginas_count(self, obj):
+        if not obj.pk:
+            return 0
+        return obj.paginas.count()
 
 
 # =====================================================================
@@ -178,6 +189,8 @@ class ComicSerializer(serializers.ModelSerializer):
     
     apoyos = serializers.SerializerMethodField()
 
+    dias_restantes = serializers.SerializerMethodField()
+    
     class Meta:
         model = Comic
         fields = [
@@ -201,8 +214,16 @@ class ComicSerializer(serializers.ModelSerializer):
             'capitulos', 
             'recompensas',
             'apoyos',
+            'dias_restantes',
         ]
 
+    def get_dias_restantes(self, obj):
+        if not obj.fecha_fin:
+            return None
+        delta = obj.fecha_fin - timezone.now()
+        return max(0, delta.days)
+    
+    
     def get_autor(self, obj):
         autores = obj.autores.select_related('autor').all()
         if not autores:
@@ -230,6 +251,8 @@ class ComicSerializer(serializers.ModelSerializer):
         return obj.donaciones.filter(
             estado_pago=Donacion.EstadoPago.COMPLETADO
         ).count()
+        
+
         
         
 class RegistroSerializer(serializers.Serializer):
@@ -464,3 +487,10 @@ class DonacionCreateSerializer(serializers.ModelSerializer):
             estado_pago=Donacion.EstadoPago.COMPLETADO,
             **validated_data,
         )
+        
+class PaginaCapituloSerializer(serializers.ModelSerializer):
+    img = serializers.ImageField(source='imagen', read_only=True)
+
+    class Meta:
+        model = PaginaCapitulo
+        fields = ['id', 'img', 'orden', 'fecha_subida']

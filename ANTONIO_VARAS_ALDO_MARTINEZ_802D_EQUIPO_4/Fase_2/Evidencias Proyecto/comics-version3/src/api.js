@@ -428,3 +428,41 @@ export async function fetchMisDonaciones() {
   if (!res.ok) throw new Error(`Error ${res.status}`)
   return res.json()
 }
+
+
+
+
+
+// =====================================================================
+// PÁGINAS DE CAPÍTULO
+// =====================================================================
+
+export async function subirPaginaCapitulo(capituloId, file) {
+  const form = new FormData()
+  form.append('imagen', file)
+  const res = await fetchConAuth(`${API_URL}/capitulos/${capituloId}/paginas/`, {
+    method: 'POST',
+    body: form,
+  })
+  const data = await leerJSON(res)
+  if (!res.ok) throw { status: res.status, errores: data }
+  return data
+}
+
+export async function listarPaginasCapitulo(capituloId) {
+  const res = await fetchConAuth(`${API_URL}/capitulos/${capituloId}/paginas/`)
+  const data = await leerJSON(res)
+  if (!res.ok) throw { status: res.status, errores: data }
+  return data
+}
+
+export async function eliminarPaginaCapituloApi(paginaId) {
+  const res = await fetchConAuth(`${API_URL}/paginas-capitulo/${paginaId}/`, {
+    method: 'DELETE',
+  })
+  if (!res.ok && res.status !== 204) {
+    const err = await leerJSON(res).catch(() => ({}))
+    throw { status: res.status, errores: err }
+  }
+  return true
+}

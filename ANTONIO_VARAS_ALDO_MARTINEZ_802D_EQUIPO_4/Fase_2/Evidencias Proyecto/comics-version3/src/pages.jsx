@@ -5,7 +5,7 @@ import { GENEROS } from './data'
 import { useStore } from './store'
 import { registrarUsuario, crearCapitulo, crearRecompensa,  actualizarCapitulo, 
           eliminarCapituloApi, actualizarRecompensa, eliminarRecompensaApi, actualizarComic, 
-          subirPaginaAvance, listarAvance, eliminarPaginaAvanceApi, } from './api'
+          subirPaginaAvance, listarAvance, eliminarPaginaAvanceApi, subirPaginaCapitulo, listarPaginasCapitulo, eliminarPaginaCapituloApi, } from './api'
 
 const campo = 'w-full rounded-xl bg-white px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-violeta'
 const chip = (on) => `rounded-full px-4 py-2 text-sm transition-colors ${on ? 'bg-violeta text-white' : 'bg-white hover:bg-violeta/15'}`
@@ -144,16 +144,35 @@ export function Detalle() {
 
       <div className="mt-10 grid gap-8 md:grid-cols-[1fr_340px]">
         <div>
-          <h2 className="text-2xl font-light">Capítulos ({c.capitulos.length})</h2>
-          {c.capitulos.length ? (
+          <h2 className="text-2xl font-light">Capítulos ({c.capitulos?.length ?? 0})</h2>
+          {c.capitulos?.length ? (
             <ul className="mt-4 space-y-2">
               {c.capitulos.map((k) => (
-                <li key={k.n} className="flex justify-between rounded-xl bg-white px-5 py-4">
-                  <span>{k.titulo}</span><span className="text-sm text-tinta/50">{k.n === 1 ? 'Piloto gratis' : k.fecha}</span>
+                <li key={k.id || k.n} className="flex items-center justify-between gap-3 rounded-xl bg-white px-5 py-4">
+                  <span className="flex-1">
+                    <span className="text-tinta/50">Cap. {k.n} ·</span> {k.titulo}
+                    {!k.es_gratis && (
+                      <span className="ml-2 rounded-full bg-coral/15 px-2 py-0.5 text-xs text-coral">
+                        Solo donantes
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-sm text-tinta/50">{k.fecha || 'sin fecha'}</span>
+                  <Link
+                    to={`/comic/${c.id}/capitulo/${k.id}`}
+                    className="rounded-full bg-violeta px-4 py-1.5 text-xs text-white hover:bg-violeta/90"
+                  >
+                    Ver
+                  </Link>
                 </li>
               ))}
             </ul>
-          ) : <p className="mt-4 text-tinta/60">Aún no hay capítulos publicados.{mio && ' Sube el primero con el botón de la derecha.'}</p>}
+          ) : (
+            <p className="mt-4 text-tinta/60">
+              Aún no hay capítulos publicados.
+              {mio && ' Sube el primero con el botón de la derecha.'}
+            </p>
+          )}
 
 
 
@@ -1031,6 +1050,12 @@ export function PanelComic() {
   const [cargandoAvance, setCargandoAvance] = useState(true)
   const [subiendoAvance, setSubiendoAvance] = useState(false)
 
+
+  const [capImagenes, setCapImagenes] = useState([])
+  const [capPaginasExpandido, setCapPaginasExpandido] = useState(null)
+  const [capPaginas, setCapPaginas] = useState({})
+  const [subiendoCapPagina, setSubiendoCapPagina] = useState(false)
+
   // Cargar avance al montar (o cuando cambia el cómic)
   useEffect(() => {
     if (!comic) return
@@ -1064,9 +1089,9 @@ export function PanelComic() {
     setCapError('')
     setCapEnviando(true)
 
-    // 1) Crear el capítulo
+    let nuevoCap
     try {
-      await crearCapitulo(comic.id, {
+      nuevoCap = await crearCapitulo(comic.id, {
         titulo: capForm.titulo,
         contenido: capForm.contenido,
         es_gratis: capForm.es_gratis,
@@ -1079,15 +1104,15 @@ export function PanelComic() {
       return
     }
 
-    // 2) Refrescar la lista (si falla, no es crítico)
-    try {
-      await recargarComic(comic.id)
-    } catch (err) {
-      console.error('[recargarComic después de capítulo]', err)
-      // No mostramos error: el capítulo YA se creó.
+    // 👇 Subir imágenes si hay
+    for (const file of capImagenes) {
+      try { await subirPaginaCapitulo(nuevoCap.id, file) }
+      catch (err) { console.error('[subir pagina]', err) }
     }
 
+    await recargarComic(comic.id)
     setCapForm({ titulo: '', contenido: '', es_gratis: true })
+    setCapImagenes([])
     setCapEnviando(false)
   }
 
@@ -1319,6 +1344,55 @@ export function PanelComic() {
   }
 
 
+  const verPaginasCapitulo = async (capId) => {
+    if (capPaginasExpandido === capId) {
+      setCapPaginasExpandido(null)
+      return
+    }
+    setCapPaginasExpandido(capId)
+    try {
+      const paginas = await listarPaginasCapitulo(capId)
+      setCapPaginas((prev) => ({ ...prev, [capId]: paginas }))
+    } catch (err) {
+      console.error('[listar paginas]', err)
+      alert('No se pudieron cargar las páginas.')
+    }
+  }
+
+  const subirMasPaginas = async (capId, files) => {
+    if (!files.length) return
+    setSubiendoCapPagina(true)
+    for (const file of files) {
+      try {
+        const nueva = await subirPaginaCapitulo(capId, file)
+        setCapPaginas((prev) => ({
+          ...prev,
+          [capId]: [...(prev[capId] || []), nueva],
+        }))
+      } catch (err) {
+        console.error('[subir pagina]', err)
+      }
+    }
+    setSubiendoCapPagina(false)
+    await recargarComic(comic.id)
+  }
+
+  const eliminarPaginaCapitulo = async (capId, paginaId) => {
+    if (!window.confirm('¿Eliminar esta página?')) return
+    try {
+      await eliminarPaginaCapituloApi(paginaId)
+      setCapPaginas((prev) => ({
+        ...prev,
+        [capId]: (prev[capId] || []).filter((p) => p.id !== paginaId),
+      }))
+      await recargarComic(comic.id)
+    } catch (err) {
+      console.error('[eliminar pagina]', err)
+      alert('Error al eliminar la página.')
+    }
+  }
+
+
   return (
     <section className="mx-auto max-w-5xl px-6 pb-24 md:px-20">
       <Link to="/creadores" className="text-sm text-violeta">← Volver al panel</Link>
@@ -1516,12 +1590,13 @@ export function PanelComic() {
           </span>
         </div>
 
+
         {comic.capitulos?.length ? (
           <ul className="mt-4 space-y-2">
             {comic.capitulos.map((k) => (
-              <li key={k.id || k.n} className="rounded-xl bg-white shadow-sm">
+              <li key={k.id} className="rounded-xl bg-white shadow-sm">
                 {capEditandoId === k.id ? (
-                  // ─── MODO EDICIÓN ───
+                  // MODO EDICIÓN: dejá tu form actual tal cual
                   <form onSubmit={guardarEdicionCap} className="p-5 space-y-3">
                     <label className="block">
                       Título
@@ -1562,29 +1637,81 @@ export function PanelComic() {
                     </div>
                   </form>
                 ) : (
-                  // ─── MODO LECTURA ───
-                  <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4">
-                    <span>
-                      <span className="text-tinta/50">Cap. {k.n} ·</span> {k.titulo}
-                    </span>
-                    <div className="flex items-center gap-3 text-sm">
-                      <span className="text-tinta/50">
-                        {k.es_gratis ? 'Gratis' : 'Pago'} · {k.fecha || 'sin fecha'}
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4">
+                      <span>
+                        <span className="text-tinta/50">Cap. {k.n} ·</span> {k.titulo}
+                        <span className="ml-2 text-xs text-tinta/50">
+                          ({k.paginas_count ?? 0} página{(k.paginas_count ?? 0) !== 1 ? 's' : ''})
+                        </span>
                       </span>
-                      <button
-                        onClick={() => iniciarEdicionCap(k)}
-                        className="text-violeta hover:underline"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => eliminarCapitulo(k)}
-                        className="text-coral hover:underline"
-                      >
-                        Eliminar
-                      </button>
+                      <div className="flex items-center gap-3 text-sm">
+                        <span className="text-tinta/50">
+                          {k.es_gratis ? 'Gratis' : 'Donantes'} · {k.fecha || 'sin fecha'}
+                        </span>
+                        <button
+                          onClick={() => verPaginasCapitulo(k.id)}
+                          className="text-violeta hover:underline"
+                        >
+                          {capPaginasExpandido === k.id ? 'Ocultar' : 'Páginas'}
+                        </button>
+                        <button
+                          onClick={() => iniciarEdicionCap(k)}
+                          className="text-violeta hover:underline"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => eliminarCapitulo(k)}
+                          className="text-coral hover:underline"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
                     </div>
-                  </div>
+
+                    {capPaginasExpandido === k.id && (
+                      <div className="border-t border-tinta/10 px-5 py-4">
+                        {(capPaginas[k.id]?.length ?? 0) === 0 ? (
+                          <p className="text-sm text-tinta/60">Sin páginas subidas.</p>
+                        ) : (
+                          <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+                            {capPaginas[k.id].map((p) => (
+                              <div key={p.id} className="relative">
+                                <img
+                                  src={p.img}
+                                  alt={`Página ${p.orden + 1}`}
+                                  className="aspect-[3/4] w-full rounded-lg object-cover"
+                                />
+                                <button
+                                  onClick={() => eliminarPaginaCapitulo(k.id, p.id)}
+                                  className="absolute right-1 top-1 rounded-full bg-coral px-2 py-0.5 text-xs text-white"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="mt-3">
+                          <label className="inline-block cursor-pointer rounded-full bg-violeta px-4 py-2 text-xs text-white">
+                            {subiendoCapPagina ? 'Subiendo…' : 'Subir más páginas'}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={(e) => {
+                                subirMasPaginas(k.id, Array.from(e.target.files))
+                                e.target.value = ''
+                              }}
+                              disabled={subiendoCapPagina}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </li>
             ))}
@@ -1616,6 +1743,21 @@ export function PanelComic() {
                 className={`${campo} mt-1`}
                 placeholder="Texto del capítulo…"
               />
+            </label>
+            <label className="block">
+              Imágenes del capítulo (opcional)
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => setCapImagenes(Array.from(e.target.files))}
+                className="mt-1 block text-sm"
+              />
+              {capImagenes.length > 0 && (
+                <p className="mt-2 text-sm text-tinta/60">
+                  {capImagenes.length} imagen(es) seleccionada(s)
+                </p>
+              )}
             </label>
             <label className="flex items-center gap-2">
               <input
@@ -1847,5 +1989,59 @@ export function PanelComic() {
   )
 }
 
+export function VerCapitulo() {
+  const { id, capId } = useParams()
+  const { comics } = useStore()
+  const [paginas, setPaginas] = useState([])
+  const [error, setError] = useState('')
+  const [cargando, setCargando] = useState(true)
 
+  const comic = comics.find((c) => String(c.id) === id)
+  const capitulo = comic?.capitulos?.find((k) => String(k.id) === capId)
+
+  useEffect(() => {
+    listarPaginasCapitulo(capId)
+      .then(setPaginas)
+      .catch((err) => {
+        if (err.status === 403) {
+          setError('Este capítulo es exclusivo para donantes. Apoya el proyecto para leerlo.')
+        } else {
+          setError('No se pudo cargar el capítulo.')
+        }
+      })
+      .finally(() => setCargando(false))
+  }, [capId])
+
+  return (
+    <section className="mx-auto max-w-3xl px-6 pb-24">
+      <Link to={`/comic/${id}`} className="text-sm text-violeta">← Volver al cómic</Link>
+
+      <h1 className="mt-4 text-3xl font-light md:text-4xl">
+        {capitulo ? `Cap. ${capitulo.n} · ${capitulo.titulo}` : 'Capítulo'}
+      </h1>
+      {comic && <p className="mt-1 text-sm text-tinta/60">{comic.titulo}</p>}
+
+      {cargando ? (
+        <p className="mt-8 text-tinta/60">Cargando capítulo…</p>
+      ) : error ? (
+        <div className="mt-8 rounded-2xl bg-coral/10 p-6 text-center">
+          <p className="text-coral">{error}</p>
+          {comic && (
+            <Boton to={`/comic/${comic.id}`} className="mt-4 py-2">
+              Ir al cómic para donar
+            </Boton>
+          )}
+        </div>
+      ) : paginas.length === 0 ? (
+        <p className="mt-8 text-tinta/60">Este capítulo aún no tiene páginas.</p>
+      ) : (
+        <div className="mt-8 space-y-3">
+          {paginas.map((p, i) => (
+            <img key={p.id} src={p.img} alt={`Página ${i + 1}`} className="w-full rounded-xl shadow-lg" />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
 

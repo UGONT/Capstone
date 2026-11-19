@@ -2,12 +2,12 @@ from django.shortcuts import render
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly
 # comics/views.py
 from rest_framework import viewsets, mixins, status
-from .models import Comic, ComicExterno, Etiqueta, Perfil, PaginaAvance, Donacion
+from .models import Comic, ComicExterno, Etiqueta, Perfil, PaginaAvance, Donacion, PaginaCapitulo
 from .serializers import (
     ComicSerializer, ComicExternoSerializer, EtiquetaSerializer, 
     RegistroSerializer, LoginSerializer, ComicCreateSerializer, 
     CapituloCreateSerializer, NivelRecompensaSerializer, Capitulo, NivelRecompensa, 
-    ComicUpdateSerializer, PerfilUpdateSerializer, PaginaAvanceSerializer, DonacionSerializer, DonacionCreateSerializer)
+    ComicUpdateSerializer, PerfilUpdateSerializer, PaginaAvanceSerializer, DonacionSerializer, DonacionCreateSerializer, PaginaCapituloSerializer)
 
 
 
@@ -25,10 +25,25 @@ from rest_framework.exceptions import PermissionDenied
 
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
+
+def _puede_ver_capitulo(capitulo, user):
+    """Devuelve True si el user puede leer el capítulo."""
+    if capitulo.es_gratis:
+        return True
+    if not user or not user.is_authenticated:
+        return False
+    if capitulo.comic.autores.filter(autor=user).exists():
+        return True
+    return Donacion.objects.filter(
+        comic=capitulo.comic,
+        usuario=user,
+        estado_pago=Donacion.EstadoPago.COMPLETADO,
+    ).exists()
+
 class ComicViewSet(viewsets.ModelViewSet):
     queryset = Comic.objects.all().order_by('-fecha_creacion')
     permission_classes = [IsAuthenticatedOrReadOnly]
-    http_method_names = ['get', 'post', 'patch', 'delete']   # 👈 sin PUT
+    http_method_names = ['get', 'post', 'patch', 'delete']   
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -165,6 +180,53 @@ class ComicViewSet(viewsets.ModelViewSet):
         )
         return Response(
             PaginaAvanceSerializer(pagina).data,
+            status=status.HTTP_201_CREATED,
+        )
+        
+
+    @action(
+        detail=True, methods=['get', 'post'],
+        permission_classes=[IsAuthenticated],
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def paginas(self, request, pk=None):
+        """
+        GET  → lista páginas del capítulo (con validación de permisos)
+        POST → sube una página nueva (solo autor)
+        """
+        capitulo = self.get_object()
+        es_autor = capitulo.comic.autores.filter(autor=request.user).exists()
+
+        # GET
+        if request.method == 'GET':
+            if not _puede_ver_capitulo(capitulo, request.user):
+                return Response(
+                    {'error': 'Este capítulo es exclusivo para donantes.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            paginas = capitulo.paginas.all()
+            return Response(PaginaCapituloSerializer(paginas, many=True).data)
+
+        # POST
+        if not es_autor:
+            return Response(
+                {'error': 'Solo el autor puede subir páginas.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        imagen = request.FILES.get('imagen')
+        if not imagen:
+            return Response(
+                {'error': 'Falta el archivo "imagen".'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        orden = capitulo.paginas.count()
+        pagina = PaginaCapitulo.objects.create(
+            capitulo=capitulo, imagen=imagen, orden=orden,
+        )
+        return Response(
+            PaginaCapituloSerializer(pagina).data,
             status=status.HTTP_201_CREATED,
         )
     
@@ -409,3 +471,94 @@ class DonacionViewSet(viewsets.ModelViewSet):
         # Devolvemos con el serializer de lectura
         salida = DonacionSerializer(donacion)
         return Response(salida.data, status=status.HTTP_201_CREATED)
+    
+    
+class PaginaCapituloViewSet(viewsets.ModelViewSet):
+    """DELETE /api/paginas-capitulo/{id}/ → borrar una página."""
+    serializer_class = PaginaCapituloSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = PaginaCapitulo.objects.all().select_related('capitulo__comic')
+    http_method_names = ['delete']
+
+    def destroy(self, request, *args, **kwargs):
+        pagina = self.get_object()
+        if not pagina.capitulo.comic.autores.filter(autor=request.user).exists():
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('No eres autor de este cómic.')
+        return super().destroy(request, *args, **kwargs)
+    
+    
+    
+# comics/views.py
+
+class CapituloViewSet(viewsets.ModelViewSet):
+    """
+    GET    /api/capitulos/?comic=X     → lista
+    PATCH  /api/capitulos/{id}/        → editar
+    DELETE /api/capitulos/{id}/        → eliminar
+    GET    /api/capitulos/{id}/paginas/ → páginas (con permisos)
+    POST   /api/capitulos/{id}/paginas/ → subir página (autor)
+    """
+    serializer_class = CapituloCreateSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = Capitulo.objects.all().select_related('comic')
+    http_method_names = ['get', 'post', 'patch', 'delete']   # 👈 incluye post
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        comic_id = self.request.query_params.get('comic')
+        if comic_id:
+            qs = qs.filter(comic_id=comic_id)
+        return qs
+
+    def update(self, request, *args, **kwargs):
+        obj = self.get_object()
+        _verificar_autor_comic(obj.comic, request.user)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        obj = self.get_object()
+        _verificar_autor_comic(obj.comic, request.user)
+        return super().destroy(request, *args, **kwargs)
+
+    @action(
+        detail=True, methods=['get', 'post'],
+        permission_classes=[IsAuthenticated],
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def paginas(self, request, pk=None):
+        capitulo = self.get_object()
+        es_autor = capitulo.comic.autores.filter(autor=request.user).exists()
+
+        # GET
+        if request.method == 'GET':
+            if not _puede_ver_capitulo(capitulo, request.user):
+                return Response(
+                    {'error': 'Este capítulo es exclusivo para donantes.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            paginas = capitulo.paginas.all()
+            return Response(PaginaCapituloSerializer(paginas, many=True).data)
+
+        # POST
+        if not es_autor:
+            return Response(
+                {'error': 'Solo el autor puede subir páginas.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        imagen = request.FILES.get('imagen')
+        if not imagen:
+            return Response(
+                {'error': 'Falta el archivo "imagen".'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        orden = capitulo.paginas.count()
+        pagina = PaginaCapitulo.objects.create(
+            capitulo=capitulo, imagen=imagen, orden=orden,
+        )
+        return Response(
+            PaginaCapituloSerializer(pagina).data,
+            status=status.HTTP_201_CREATED,
+        )

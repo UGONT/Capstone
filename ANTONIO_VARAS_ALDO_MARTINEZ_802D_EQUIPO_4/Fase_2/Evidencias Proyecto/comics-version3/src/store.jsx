@@ -30,7 +30,7 @@ function normalizar(c) {
     recaudado: c.recaudado || 0,
     meta: c.meta || 0,
     apoyos: c.apoyos ?? 0,
-    dias: c.dias ?? null,
+    dias: c.dias_restantes ?? null,   
     capitulos: (c.capitulos ?? []).map((k) => ({
       id: k.id,
       n: k.numero,
@@ -38,6 +38,7 @@ function normalizar(c) {
       contenido: k.contenido,
       fecha: k.fecha_publicacion ? k.fecha_publicacion.slice(0, 10) : null,
       es_gratis: k.es_gratis,
+      paginas_count: k.paginas_count ?? 0,
     })),
     recompensas: (c.recompensas ?? []).map((r) => ({
       id: r.id,
