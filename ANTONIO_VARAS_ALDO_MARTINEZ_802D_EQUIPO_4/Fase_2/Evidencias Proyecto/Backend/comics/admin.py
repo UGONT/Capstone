@@ -12,6 +12,7 @@ from .models import (
     NivelRecompensa,
     Donacion,
     Valoracion,
+    PaginaCapitulo, PaginaAvance
 )
 
 
@@ -83,6 +84,23 @@ class NivelRecompensaInline(admin.TabularInline):
     model = NivelRecompensa
     extra = 0
 
+class PaginaAvanceInline(admin.TabularInline):
+    model = PaginaAvance
+    extra = 1
+    fields = ('imagen', 'orden', 'preview')
+    readonly_fields = ('preview',)
+    ordering = ('orden',)
+
+    @admin.display(description='Vista previa')
+    def preview(self, obj):
+        if obj.imagen:
+            from django.utils.html import format_html
+            return format_html(
+                '<img src="{}" style="height:120px;border-radius:6px;" />',
+                obj.imagen.url,
+            )
+        return '—'
+
 
 @admin.register(Comic)
 class ComicAdmin(admin.ModelAdmin):
@@ -97,7 +115,7 @@ class ComicAdmin(admin.ModelAdmin):
     )
     list_filter = ('estado', 'crowdfunding_activo')
     search_fields = ('titulo', 'sinopsis')
-    inlines = [ComicAutorInline, ComicEtiquetaInline, NivelRecompensaInline]
+    inlines = [ComicAutorInline, ComicEtiquetaInline, NivelRecompensaInline, PaginaAvanceInline]
     readonly_fields = (
         'recaudacion_actual',
         'valoracion_promedio',
@@ -141,6 +159,29 @@ class ComicAdmin(admin.ModelAdmin):
 # =====================================================================
 # CAPITULO
 # =====================================================================
+class PaginaCapituloInline(admin.TabularInline):
+    model = PaginaCapitulo
+    extra = 1
+    fields = ('imagen', 'orden', 'preview')
+    readonly_fields = ('preview',)
+    ordering = ('orden',)
+
+    @admin.display(description='Vista previa')
+    def preview(self, obj):
+        if obj.imagen:
+            from django.utils.html import format_html
+            return format_html(
+                '<img src="{}" style="height:120px;border-radius:6px;" />',
+                obj.imagen.url,
+            )
+        return '—'
+    
+    
+
+
+
+
+
 
 @admin.register(Capitulo)
 class CapituloAdmin(admin.ModelAdmin):
@@ -148,6 +189,7 @@ class CapituloAdmin(admin.ModelAdmin):
     list_filter = ('es_gratis',)
     search_fields = ('titulo', 'comic__titulo')
     ordering = ('comic', 'numero')
+    inlines = [PaginaCapituloInline]    
 
 
 # =====================================================================
@@ -191,3 +233,5 @@ class ValoracionAdmin(admin.ModelAdmin):
     search_fields = ('usuario__username', 'comic__titulo')
     readonly_fields = ('fecha',)
     raw_id_fields = ('usuario', 'comic')
+    
+    
