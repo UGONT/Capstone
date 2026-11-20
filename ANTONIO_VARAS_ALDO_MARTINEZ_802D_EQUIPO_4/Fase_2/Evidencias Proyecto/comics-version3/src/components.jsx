@@ -57,6 +57,13 @@ export function Navbar() {
 }
 
 export function Hero({ abrirIA }) {
+  const { user } = useStore()
+  const nav = useNavigate()
+
+  const handleIA = () => {
+    if (user) abrirIA()
+    else nav('/login')
+  }
   return (
     <section className="mx-auto grid max-w-7xl items-center gap-12 px-6 pb-24 pt-10 md:grid-cols-2 md:px-20">
       <div>
@@ -179,14 +186,15 @@ export function Creadores() {
   )
 }
 
+// src/components.jsx
 export function ChatIA({ abierto, setAbierto }) {
+  const { comics, user } = useStore()
+  const nav = useNavigate()
   const [msgs, setMsgs] = useState([
     { rol: 'ia', texto: 'Hola, cuéntame qué tipo de historias te gustan y te recomiendo obras.' },
   ])
   const [input, setInput] = useState('')
   const [cargando, setCargando] = useState(false)
-  const nav = useNavigate()
-  const { comics } = useStore()
 
   const enviar = async () => {
     const texto = input.trim()
@@ -209,10 +217,45 @@ export function ChatIA({ abierto, setAbierto }) {
     }
   }
 
-  // Función para detectar menciones de cómics en la respuesta y mostrarlos como cards
   const comicsMencionados = (texto) =>
     comics.filter((c) => texto.toLowerCase().includes(c.titulo.toLowerCase())).slice(0, 3)
 
+  // 👇 Guard clause DESPUÉS de los hooks
+  if (!user) {
+    return (
+      <div className="fixed bottom-5 right-5 z-50">
+        {abierto && (
+          <div className="mb-3 w-80 rounded-3xl bg-white p-6 text-center shadow-2xl shadow-tinta/25">
+            <p className="text-3xl" aria-hidden>🔒</p>
+            <h3 className="mt-3 text-lg font-light">
+              Inicia sesión para usar el asistente
+            </h3>
+            <p className="mt-2 text-sm text-tinta/60">
+              El asistente IA aprende de tus gustos y cómics leídos para
+              recomendarte historias que te interesen.
+            </p>
+            <Boton to="/login" className="mt-4 py-2" onClick={() => setAbierto(false)}>
+              Iniciar sesión
+            </Boton>
+            <button
+              onClick={() => setAbierto(false)}
+              className="mt-3 block w-full text-sm text-tinta/60 hover:text-violeta"
+            >
+              Cerrar
+            </button>
+          </div>
+        )}
+        <button
+          onClick={() => setAbierto(!abierto)}
+          className="ml-auto block rounded-full bg-tinta px-6 py-3.5 text-white shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violeta"
+        >
+          {abierto ? 'Cerrar' : 'Pregúntale a la IA'}
+        </button>
+      </div>
+    )
+  }
+
+  // 👇 Usuario logueado: chat normal
   return (
     <div className="fixed bottom-5 right-5 z-50">
       {abierto && (
@@ -236,12 +279,7 @@ export function ChatIA({ abierto, setAbierto }) {
                       onClick={() => nav('/comic/' + o.id)}
                       className="mt-2 flex cursor-pointer items-center gap-3 rounded-xl border border-tinta/10 p-2"
                     >
-                      <Portada
-                        bg={o.bg}
-                        img={o.img}
-                        titulo={o.titulo}
-                        className="size-12 shrink-0 rounded-lg"
-                      />
+                      <Portada bg={o.bg} img={o.img} titulo={o.titulo} className="size-12 shrink-0 rounded-lg" />
                       <div>
                         <p>{o.titulo}</p>
                         <p className="text-xs text-tinta/50">
