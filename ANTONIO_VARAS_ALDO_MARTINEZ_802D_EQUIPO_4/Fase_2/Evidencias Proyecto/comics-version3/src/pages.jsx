@@ -5,27 +5,67 @@ import { GENEROS, colorDe } from './data'
 import { useStore } from './store'
 import { registrarUsuario, crearCapitulo, crearRecompensa,  actualizarCapitulo, 
           eliminarCapituloApi, actualizarRecompensa, eliminarRecompensaApi, actualizarComic, 
-          subirPaginaAvance, listarAvance, eliminarPaginaAvanceApi, subirPaginaCapitulo, listarPaginasCapitulo, eliminarPaginaCapituloApi, fetchPerfilPublico } from './api'
+          subirPaginaAvance, listarAvance, eliminarPaginaAvanceApi, subirPaginaCapitulo, listarPaginasCapitulo,
+           eliminarPaginaCapituloApi, fetchPerfilPublico, eliminarComicApi } from './api'
 
 const campo = 'w-full rounded-xl bg-white px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-violeta'
 const chip = (on) => `rounded-full px-4 py-2 text-sm transition-colors ${on ? 'bg-violeta text-white' : 'bg-white hover:bg-violeta/15'}`
 const leer = (f) => new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(f) })
 
-export function Explorar() {
-  const { comics, etiquetas } = useStore()
+export function Explorar({ modo = 'todos' }) {
+  const { comics, etiquetas, user } = useStore()
+  const [searchParams] = useSearchParams()
   const [q, setQ] = useState('')
   const [g, setG] = useState('')
 
-  const lista = comics.filter(
-    (c) =>
-      (!g || c.generos.includes(g)) &&
-      c.titulo.toLowerCase().includes(q.toLowerCase())
-  )
-  
+  const misGustos = user?.generos || []
+  const verTodos = searchParams.get('todos') === '1'
+  const personalizado = modo === 'personalizado' && misGustos.length > 0 && !verTodos
+
+  const lista = comics.filter((c) => {
+    if (g && !c.generos.includes(g)) return false
+    if (q && !c.titulo.toLowerCase().includes(q.toLowerCase())) return false
+    if (
+      personalizado &&
+      !c.generos.some((gen) => misGustos.includes(gen))
+    ) {
+      return false
+    }
+    return true
+  })
+
   return (
     <section className="mx-auto max-w-7xl px-6 pb-24 md:px-20">
-      <h1 className="text-4xl font-light md:text-5xl">Explorar cómics</h1>
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por título" aria-label="Buscar por título" className={`${campo} mt-8 max-w-md`} />
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-light md:text-5xl">
+            {personalizado ? 'Recomendado para ti' : 'Explorar cómics'}
+          </h1>
+          {personalizado && (
+            <p className="mt-2 text-sm text-tinta/60">
+              Basado en tus gustos: {misGustos.join(', ')}
+            </p>
+          )}
+        </div>
+
+        {modo === 'personalizado' && misGustos.length > 0 && (
+          <Link
+            to={verTodos ? '/explorar' : '/explorar?todos=1'}
+            className="text-sm text-violeta hover:underline"
+          >
+            {verTodos ? '← Ver recomendados' : 'Ver todo el catálogo →'}
+          </Link>
+        )}
+      </div>
+
+      <input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Buscar por título"
+        aria-label="Buscar por título"
+        className={`${campo} mt-8 max-w-md`}
+      />
+
       <div className="mt-4 flex flex-wrap gap-2">
         {['', ...etiquetas.map((e) => e.nombre)].map((x) => (
           <button key={x} onClick={() => setG(x)} className={chip(g === x)}>
@@ -33,10 +73,32 @@ export function Explorar() {
           </button>
         ))}
       </div>
+
       {lista.length ? (
-        <div className="mt-10 grid gap-8 sm:grid-cols-2 md:grid-cols-3">{lista.map((c) => <ComicCard key={c.id} c={c} />)}</div>
+        <div className="mt-10 grid gap-8 sm:grid-cols-2 md:grid-cols-3">
+          {lista.map((c) => (
+            <ComicCard key={c.id} c={c} />
+          ))}
+        </div>
       ) : (
-        <p className="mt-10">No hay cómics con ese filtro. Prueba otro género o <Link to="/publicar" className="text-violeta">publica el tuyo</Link>.</p>
+        <div className="mt-10">
+          {personalizado ? (
+            <p className="text-tinta/60">
+              No encontramos cómics que coincidan con tus gustos.{' '}
+              <Link to="/explorar?todos=1" className="text-violeta">
+                Ver todo el catálogo
+              </Link>
+            </p>
+          ) : (
+            <p className="text-tinta/60">
+              No hay cómics con ese filtro. Prueba otro género o{' '}
+              <Link to="/publicar" className="text-violeta">
+                publica el tuyo
+              </Link>
+              .
+            </p>
+          )}
+        </div>
       )}
     </section>
   )
@@ -1091,7 +1153,7 @@ export function Perfil() {
 
 export function PanelComic() {
   const { id } = useParams()
-  const { user, comics, recargarComic, etiquetas  } = useStore()
+  const { user, comics, recargarComic, etiquetas, eliminarComic  } = useStore()
   const nav = useNavigate()
 
   const comic = comics.find((c) => String(c.id) === id)
@@ -1183,7 +1245,10 @@ export function PanelComic() {
       return
     }
 
-    // 👇 Subir imágenes si hay
+
+
+
+    // Subir imágenes si hay
     for (const file of capImagenes) {
       try { await subirPaginaCapitulo(nuevoCap.id, file) }
       catch (err) { console.error('[subir pagina]', err) }
@@ -1264,6 +1329,21 @@ export function PanelComic() {
     } catch (err) {
       console.error('[eliminar capítulo]', err)
       alert('Error al eliminar el capítulo.')
+    }
+  }
+
+  const borrarComic = async () => {
+    const confirmar = window.confirm(
+      `¿Eliminar "${comic.titulo}"? Esta acción no se puede deshacer.`
+    )
+    if (!confirmar) return
+
+    try {
+      await eliminarComic(comic.id)
+      nav('/creadores')
+    } catch (err) {
+      console.error('[eliminar comic]', err)
+      alert('Error al eliminar el cómic.')
     }
   }
 
@@ -1513,6 +1593,12 @@ export function PanelComic() {
                 Editar cómic
               </button>
             )}
+            <button
+              onClick={borrarComic}
+              className="rounded-full border border-coral px-4 py-2 text-sm text-coral hover:bg-coral hover:text-white transition-colors"
+            >
+              Eliminar cómic
+            </button>
           </div>
         </div>
 

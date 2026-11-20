@@ -475,3 +475,20 @@ export async function fetchPerfilPublico(username) {
   if (!res.ok) throw new Error(`Error ${res.status}`)
   return res.json()
 }
+
+
+
+// =====================================================================
+// BORRAR CÓMIC
+// =====================================================================
+
+export async function eliminarComicApi(comicId) {
+  const res = await fetchConAuth(`${API_URL}/comics/${comicId}/`, {
+    method: 'DELETE',
+  })
+  if (!res.ok && res.status !== 204) {
+    const err = await leerJSON(res).catch(() => ({}))
+    throw { status: res.status, errores: err }
+  }
+  return true
+}

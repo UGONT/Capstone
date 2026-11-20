@@ -36,7 +36,7 @@ export function Navbar() {
       </Link>
       <nav className="hidden gap-9 text-[15px] md:flex">
         <Link to="/explorar" className="hover:text-violeta">Explorar</Link>
-        <Link to="/explorar" className="hover:text-violeta">Campañas</Link>
+        <Link to="/campanas" className="hover:text-violeta">Campañas</Link>
         <Link to="/creadores" className="hover:text-violeta">Para creadores</Link>
       </nav>
       <div className="flex items-center gap-5">
@@ -95,7 +95,7 @@ export function Campana() {
           <p className="text-xs text-coral">Campañas en movimiento</p>
           <h2 className="mt-3 max-w-xl text-4xl leading-tight font-light md:text-5xl">Ayuda a imprimir el siguiente capítulo.</h2>
         </div>
-        <Boton to="/explorar" variante="oscuro" className="max-sm:hidden">Ver campañas</Boton>
+        <Boton to="/campanas" variante="oscuro" className="max-sm:hidden">Ver campañas</Boton>
       </div>
       <div className="mt-10 grid overflow-hidden rounded-[2rem] bg-white shadow-xl shadow-tinta/10 md:grid-cols-[1.1fr_1fr]">
         <div className="bg-[#e3d9bb] p-4"><Portada bg={campana.bg} img={campana.img} titulo={campana.titulo} className="h-72 w-full md:h-full" /></div>
@@ -292,7 +292,7 @@ export function ChatIA({ abierto, setAbierto }) {
 
 export function Footer() {
   const cols = {
-    Plataforma: [['Explorar', '/explorar'], ['Campañas', '/explorar'], ['Asistente IA', '/']],
+    Plataforma: [['Explorar', '/explorar'], ['Campañas', '/explorar'], ['Asistente IA', '/'], ['Campañas', '/campanas'],], 
     Creadores: [
       ['Panel', '/creadores'],          
       ['Publicar', '/publicar'],

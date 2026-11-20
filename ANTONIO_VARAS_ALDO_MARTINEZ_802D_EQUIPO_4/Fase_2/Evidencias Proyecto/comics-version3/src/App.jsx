@@ -30,7 +30,7 @@ export default function App() {
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<Home />} />
-            <Route path="explorar" element={<Explorar />} />
+            <Route path="explorar" element={<Explorar modo="personalizado" />} />
             <Route path="comic/:id" element={<Detalle />} />
             <Route path="creadores" element={<PanelCreador />} /> 
             <Route path="creadores/comic/:id" element={<PanelComic />} />
@@ -39,6 +39,7 @@ export default function App() {
             <Route path="perfil" element={<Perfil />} />
             <Route path="comic/:id/capitulo/:capId" element={<VerCapitulo />} />
             <Route path="usuario/:username" element={<PerfilPublico />} />
+            <Route path="campanas" element={<Explorar modo="todos" />} />
           </Route>
         </Routes>
       </BrowserRouter>

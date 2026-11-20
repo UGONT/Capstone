@@ -1,7 +1,7 @@
 // src/store.jsx
 import { createContext, useContext, useEffect, useState } from 'react'
 import { fetchComics, fetchEtiquetas,fetchMe, loginApi, logoutApi, crearComic, 
-        fetchComicDetalle, actualizarMiPerfilApi, crearDonacion, fetchMisDonaciones,  } from './api'
+        fetchComicDetalle, actualizarMiPerfilApi, crearDonacion, fetchMisDonaciones, eliminarComicApi } from './api'
 import { setCampana, colorDe } from './data'
 
 const Ctx = createContext()
@@ -81,6 +81,10 @@ export function StoreProvider({ children }) {
   const [etiquetas, setEtiquetas] = useState([])
   const [cargandoEtiquetas, setCargandoEtiquetas] = useState(true)
 
+  const eliminarComic = async (comicId) => {
+  await eliminarComicApi(comicId)
+    setComics((prev) => prev.filter((c) => c.id !== comicId))
+  }
   // Cargar etiquetas
   useEffect(() => {
     fetchEtiquetas()
@@ -224,7 +228,7 @@ export function StoreProvider({ children }) {
         misDonaciones,
         login, logout, actualizarPerfil,
         addComic, aporteDe, donar, addCapitulo,
-        recargarComic,
+        recargarComic, eliminarComic,
       }}
     >
       {children}
