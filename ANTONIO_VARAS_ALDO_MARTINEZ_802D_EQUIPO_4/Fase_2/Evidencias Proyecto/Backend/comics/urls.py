@@ -14,7 +14,8 @@ from .views import (
     MiPerfilView,
     PaginaAvanceViewSet,
     DonacionViewSet,
-    PaginaCapituloViewSet
+    PaginaCapituloViewSet,
+    PerfilPublicoView
 )
 
 router = DefaultRouter()
@@ -34,6 +35,7 @@ urlpatterns = [
     path('auth/me/', MeView.as_view(), name='me'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
     path('perfil/', MiPerfilView.as_view(), name='mi-perfil'),
+    path('usuarios/<str:username>/', PerfilPublicoView.as_view(), name='perfil-publico'),
 ]
 
 urlpatterns += router.urls

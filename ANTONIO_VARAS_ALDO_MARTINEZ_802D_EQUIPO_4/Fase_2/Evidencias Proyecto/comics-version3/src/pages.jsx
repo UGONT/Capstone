@@ -1,11 +1,11 @@
 import { useState, useEffect  } from 'react'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Boton, ComicCard, Portada, SelectorComics, clp } from './components'
-import { GENEROS } from './data'
+import { GENEROS, colorDe } from './data'
 import { useStore } from './store'
 import { registrarUsuario, crearCapitulo, crearRecompensa,  actualizarCapitulo, 
           eliminarCapituloApi, actualizarRecompensa, eliminarRecompensaApi, actualizarComic, 
-          subirPaginaAvance, listarAvance, eliminarPaginaAvanceApi, subirPaginaCapitulo, listarPaginasCapitulo, eliminarPaginaCapituloApi, } from './api'
+          subirPaginaAvance, listarAvance, eliminarPaginaAvanceApi, subirPaginaCapitulo, listarPaginasCapitulo, eliminarPaginaCapituloApi, fetchPerfilPublico } from './api'
 
 const campo = 'w-full rounded-xl bg-white px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-violeta'
 const chip = (on) => `rounded-full px-4 py-2 text-sm transition-colors ${on ? 'bg-violeta text-white' : 'bg-white hover:bg-violeta/15'}`
@@ -132,7 +132,21 @@ export function Detalle() {
           <p className="mt-6 text-sm text-tinta/50">Géneros</p>
           <div className="mt-2 flex flex-wrap gap-2">{c.generos.map((g) => <span key={g} className="rounded-md bg-violeta/15 px-3 py-1 text-sm text-violeta">{g}</span>)}</div>
           <p className="mt-6 text-sm text-tinta/50">Autoría</p>
-          <p>{c.autor}</p>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+            {c.autores?.length ? (
+              c.autores.map((a) => (
+                <Link
+                  key={a.username}
+                  to={`/usuario/${a.username}`}
+                  className="text-violeta hover:underline"
+                >
+                  {a.nickname || a.username}
+                </Link>
+              ))
+            ) : (
+              <span>{c.autor || 'Anónimo'}</span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -570,6 +584,7 @@ export function Login() {
   const [f, setF] = useState({
     nombre: '', email: '', password: '', password2: '',
     edad: '', leidos: [], generos: [],
+    bio: '',
   })
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
   const alternar = (g) =>
@@ -601,6 +616,7 @@ export function Login() {
           es_creador: false,
           gustos: f.generos,      
           comics_leidos: f.leidos,
+          bio: f.bio || '',
         })
         // 2) Restaurar user en el store desde /me
         //    (registrarUsuario ya guardó tokens; fetchMe los usa)
@@ -693,6 +709,18 @@ export function Login() {
               value={f.password2}
               onChange={set('password2')}
               className={`${campo} mt-1`}
+            />
+          </label>
+        )}
+        {registro && (
+          <label className="block">
+            Biografía (opcional)
+            <textarea
+              rows={3}
+              value={f.bio}
+              onChange={set('bio')}
+              className={`${campo} mt-1`}
+              placeholder="Cuéntanos sobre ti…"
             />
           </label>
         )}
@@ -860,6 +888,9 @@ export function Perfil() {
   const leidos = user.leidos || []
   const apoyados = comics.filter((c) => aporteDe(c.id) > 0)
 
+  const [editandoBio, setEditandoBio] = useState(false)
+  const [bioForm, setBioForm] = useState('')
+
   // ─── Handlers ───
 
   const guardarCambios = async (parcial) => {
@@ -901,6 +932,17 @@ export function Perfil() {
     e.preventDefault()
     await guardarCambios({ nickname: nickForm })
     setEditandoNick(false)
+  }
+
+  const iniciarEdicionBio = () => {
+  setBioForm(user.bio || '')
+  setEditandoBio(true)
+  }
+
+  const guardarBio = async (e) => {
+    e.preventDefault()
+    await guardarCambios({ bio: bioForm })
+    setEditandoBio(false)
   }
 
   // ─── JSX ───
@@ -959,6 +1001,43 @@ export function Perfil() {
             Editar
           </button>
         </p>
+      )}
+
+      <h2 className="mt-12 text-2xl font-light">Tu biografía</h2>
+      {editandoBio ? (
+        <form onSubmit={guardarBio} className="mt-3 max-w-2xl space-y-2">
+          <textarea
+            rows={4}
+            value={bioForm}
+            onChange={(e) => setBioForm(e.target.value)}
+            className={campo}
+            placeholder="Cuéntanos sobre ti…"
+          />
+          <div className="flex items-center gap-3">
+            <Boton type="submit" className="py-2" disabled={guardando}>
+              Guardar
+            </Boton>
+            <button
+              type="button"
+              onClick={() => setEditandoBio(false)}
+              className="text-sm text-tinta/60 hover:text-violeta"
+            >
+              Cancelar
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="mt-3 max-w-2xl">
+          <p className="whitespace-pre-wrap text-tinta/70">
+            {user.bio || 'Aún no has escrito una biografía.'}
+          </p>
+          <button
+            onClick={iniciarEdicionBio}
+            className="mt-2 text-sm text-violeta hover:underline"
+          >
+            Editar
+          </button>
+        </div>
       )}
 
       {/* Géneros */}
@@ -2045,3 +2124,126 @@ export function VerCapitulo() {
   )
 }
 
+
+export function PerfilPublico() {
+  const { username } = useParams()
+  const [perfil, setPerfil] = useState(null)
+  const [error, setError] = useState('')
+  const [cargando, setCargando] = useState(true)
+
+  useEffect(() => {
+    setCargando(true)
+    setError('')
+    fetchPerfilPublico(username)
+      .then(setPerfil)
+      .catch((err) => {
+        if (err.message?.includes('404')) {
+          setError('Usuario no encontrado.')
+        } else {
+          setError('No se pudo cargar el perfil.')
+        }
+      })
+      .finally(() => setCargando(false))
+  }, [username])
+
+  if (cargando) {
+    return (
+      <p className="mx-auto max-w-7xl px-6 py-24 md:px-20 text-tinta/60">
+        Cargando perfil…
+      </p>
+    )
+  }
+
+  if (error) {
+    return (
+      <section className="mx-auto max-w-7xl px-6 py-24 md:px-20">
+        <p className="text-coral">{error}</p>
+        <Link to="/explorar" className="mt-4 inline-block text-violeta">
+          ← Volver a explorar
+        </Link>
+      </section>
+    )
+  }
+
+  if (!perfil) return null
+
+  // Normalizar los cómics al formato que espera ComicCard
+  const comicsNormalizados = (perfil.comics || []).map((c) => ({
+    ...c,
+    bg: colorDe(c.titulo),
+    formato: 'Digital',
+    autor: perfil.nickname,
+    apoyos: 0,
+    estado:
+      c.estado === 'en_campana' ? 'En campaña'
+      : c.estado === 'publicado' ? 'Publicado'
+      : c.estado,
+  }))
+
+  return (
+    <section className="mx-auto max-w-7xl px-6 pb-24 md:px-20">
+      {/* Header */}
+      <div className="mt-8 flex flex-wrap items-start gap-6">
+        {perfil.avatar ? (
+          <img
+            src={perfil.avatar}
+            alt={perfil.nickname}
+            className="size-28 rounded-full object-cover shadow-lg"
+          />
+        ) : (
+          <div className="grid size-28 place-items-center rounded-full bg-violeta text-4xl text-white shadow-lg">
+            {(perfil.nickname || '?')[0].toUpperCase()}
+          </div>
+        )}
+        <div className="flex-1">
+          <h1 className="text-4xl font-light md:text-5xl">{perfil.nickname}</h1>
+          <p className="mt-1 text-tinta/60">@{perfil.username}</p>
+          {perfil.es_creador && (
+            <span className="mt-3 inline-block rounded-full bg-lima px-3 py-1 text-xs">
+              Creador
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Bio */}
+      <h2 className="mt-12 text-2xl font-light">Biografía</h2>
+      <p className="mt-3 max-w-2xl whitespace-pre-wrap text-tinta/70">
+        {perfil.bio || 'Este usuario aún no escribió una biografía.'}
+      </p>
+
+      {/* Gustos */}
+      {perfil.generos?.length > 0 && (
+        <>
+          <h2 className="mt-12 text-2xl font-light">Gustos</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {perfil.generos.map((g) => (
+              <span
+                key={g}
+                className="rounded-full bg-violeta/15 px-3 py-1 text-sm text-violeta"
+              >
+                {g}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Cómics */}
+      <h2 className="mt-12 text-2xl font-light">
+        Cómics publicados ({comicsNormalizados.length})
+      </h2>
+      {comicsNormalizados.length > 0 ? (
+        <div className="mt-6 grid gap-8 sm:grid-cols-2 md:grid-cols-3">
+          {comicsNormalizados.map((c) => (
+            <ComicCard key={c.id} c={c} />
+          ))}
+        </div>
+      ) : (
+        <p className="mt-4 text-tinta/60">
+          Este usuario aún no tiene cómics publicados.
+        </p>
+      )}
+    </section>
+  )
+}

@@ -268,6 +268,7 @@ class RegistroSerializer(serializers.Serializer):
     )
     es_creador = serializers.BooleanField(default=False)
 
+    bio = serializers.CharField(required=False, allow_blank=True, max_length=1000)
     # Relaciones (IDs)
     gustos = serializers.ListField(
         child=serializers.CharField(), required=False
@@ -314,6 +315,7 @@ class RegistroSerializer(serializers.Serializer):
                 'nickname': validated_data['nickname'],
                 'edad': validated_data.get('edad'),
                 'es_creador': validated_data.get('es_creador', False),
+                'bio': validated_data.get('bio', ''),
             },
         )
 
@@ -364,7 +366,7 @@ class PerfilUpdateSerializer(serializers.ModelSerializer):
         return value
 
     def to_representation(self, instance):
-        """Salida con nombres, no con IDs, para que el front lo use directo."""
+
         return {
             'id': instance.id,
             'username': instance.usuario.username,
@@ -372,6 +374,7 @@ class PerfilUpdateSerializer(serializers.ModelSerializer):
             'nickname': instance.nickname,
             'edad': instance.edad,
             'bio': instance.bio,
+            'avatar': instance.avatar.url if instance.avatar else None,
             'es_creador': instance.es_creador,
             'generos': [e.nombre for e in instance.gustos.all()],
             'leidos': [c.nombre for c in instance.comics_leidos.all()],
@@ -494,3 +497,52 @@ class PaginaCapituloSerializer(serializers.ModelSerializer):
     class Meta:
         model = PaginaCapitulo
         fields = ['id', 'img', 'orden', 'fecha_subida']
+        
+
+
+class ComicMiniSerializer(serializers.ModelSerializer):
+    """Versión resumida de un cómic para la vista de perfil público."""
+    img = serializers.ImageField(source='portada', read_only=True)
+    recaudado = serializers.IntegerField(source='recaudacion_actual')
+    meta = serializers.IntegerField(source='meta_recaudacion')
+    generos = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Comic
+        fields = ['id', 'titulo', 'img', 'recaudado', 'meta', 'generos', 'estado']
+
+    def get_generos(self, obj):
+        return [ce.etiqueta.nombre for ce in obj.etiquetas.select_related('etiqueta').all()]
+
+
+class PerfilPublicoSerializer(serializers.ModelSerializer):
+    """Datos públicos de un perfil (visibles para cualquiera)."""
+    username = serializers.CharField(source='usuario.username', read_only=True)
+    generos = serializers.SerializerMethodField()
+    comics = serializers.SerializerMethodField()
+    total_comics = serializers.SerializerMethodField()
+    avatar = serializers.ImageField(read_only=True)
+
+    class Meta:
+        model = Perfil
+        fields = [
+            'username', 'nickname', 'bio', 'avatar',
+            'es_creador', 'generos', 'comics', 'total_comics',
+        ]
+
+    def get_generos(self, obj):
+        return [e.nombre for e in obj.gustos.all()]
+
+    def get_comics(self, obj):
+        # Solo los cómics donde este user es autor y están visibles
+        comics_qs = Comic.objects.filter(
+            autores__autor=obj.usuario,
+            estado__in=[Comic.Estado.PUBLICADO, Comic.Estado.EN_CAMPANA],
+        ).distinct()
+        return ComicMiniSerializer(comics_qs, many=True, context=self.context).data
+
+    def get_total_comics(self, obj):
+        return Comic.objects.filter(
+            autores__autor=obj.usuario,
+            estado__in=[Comic.Estado.PUBLICADO, Comic.Estado.EN_CAMPANA],
+        ).distinct().count()

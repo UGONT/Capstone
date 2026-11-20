@@ -7,7 +7,7 @@ async function leerJSON(res) {
   if (contentType.includes('application/json')) {
     return res.json()
   }
-  // Si el backend devolvió HTML (por un 500 sin manejar), damos un mensaje claro
+  // Si el backend devolvió HTML (por un 500 sin manejar)
   const text = await res.text()
   console.error('Respuesta no-JSON del servidor:', text.slice(0, 500))
   return { error: 'Error interno del servidor. Revisá la consola del backend.' }
@@ -369,6 +369,8 @@ export async function actualizarMiPerfilApi(datos, avatarFile = null) {
     email: data.email,
     nombre: data.nickname,   
     edad: data.edad,
+    bio: data.bio,               
+    avatar: data.avatar, 
     generos: data.generos,
     leidos: data.leidos,
     es_creador: data.es_creador,
@@ -465,4 +467,11 @@ export async function eliminarPaginaCapituloApi(paginaId) {
     throw { status: res.status, errores: err }
   }
   return true
+}
+
+
+export async function fetchPerfilPublico(username) {
+  const res = await fetch(`${API_URL}/usuarios/${encodeURIComponent(username)}/`)
+  if (!res.ok) throw new Error(`Error ${res.status}`)
+  return res.json()
 }

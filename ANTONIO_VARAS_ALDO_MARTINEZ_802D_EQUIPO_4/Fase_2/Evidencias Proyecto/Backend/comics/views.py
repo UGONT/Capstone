@@ -7,7 +7,7 @@ from .serializers import (
     ComicSerializer, ComicExternoSerializer, EtiquetaSerializer, 
     RegistroSerializer, LoginSerializer, ComicCreateSerializer, 
     CapituloCreateSerializer, NivelRecompensaSerializer, Capitulo, NivelRecompensa, 
-    ComicUpdateSerializer, PerfilUpdateSerializer, PaginaAvanceSerializer, DonacionSerializer, DonacionCreateSerializer, PaginaCapituloSerializer)
+    ComicUpdateSerializer, PerfilUpdateSerializer, PaginaAvanceSerializer, DonacionSerializer, DonacionCreateSerializer, PaginaCapituloSerializer, PerfilPublicoSerializer   )
 
 
 
@@ -291,7 +291,10 @@ def _serializar_usuario(user):
         'username': user.username,
         'email': user.email,
         'nombre': perfil.nickname,
+        'nickname': perfil.nickname, 
         'edad': perfil.edad,
+        'bio': perfil.bio, 
+        'avatar': perfil.avatar.url if perfil.avatar else None,
         'es_creador': perfil.es_creador,
         'generos': [e.nombre for e in perfil.gustos.all()],
         'leidos': [c.nombre for c in perfil.comics_leidos.all()],
@@ -562,3 +565,21 @@ class CapituloViewSet(viewsets.ModelViewSet):
             PaginaCapituloSerializer(pagina).data,
             status=status.HTTP_201_CREATED,
         )
+        
+        
+class PerfilPublicoView(APIView):
+    """GET /api/usuarios/{username}/ → perfil público (sin auth)."""
+    permission_classes = [AllowAny]
+
+    def get(self, request, username):
+        try:
+            perfil = Perfil.objects.select_related('usuario').prefetch_related(
+                'gustos', 'usuario__comics_como_autor__comic'
+            ).get(usuario__username=username)
+        except Perfil.DoesNotExist:
+            return Response(
+                {'error': 'Usuario no encontrado.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        serializer = PerfilPublicoSerializer(perfil, context={'request': request})
+        return Response(serializer.data)
