@@ -33,33 +33,40 @@ En un sistema de crowdfunding esto es aún más crítico: si los lectores no enc
 | Capa | Tecnologías |
 |---|---|
 | Frontend | React, Vite, TypeScript, Tailwind CSS |
-| Backend | Python, Django, Django REST Framework |
-| Inteligencia artificial | LangChain, Google Gemini |
+| Backend | Python, Django, Django REST Framework (ASGI) |
+| Inteligencia artificial | LangChain, Google AI Studio (Gemini: LLM y embeddings) |
 | Base de datos | PostgreSQL con pgvector (Supabase) |
 | Archivos | Supabase Storage |
-| Caché | Redis (Upstash) |
 | Nube | Cloudflare (frontend) y Render (backend) |
+| Control de versiones | Git y GitHub |
 
 ---
 
 ## Arquitectura
 
+![Diagrama de arquitectura de Epewtufe](docs/arquitectura.png)
+
 ```mermaid
 flowchart LR
-    U["Usuario<br/>(navegador)"] --> F["Frontend<br/>React + Vite<br/>Cloudflare"]
-    U --> B["Backend<br/>Django + LangChain<br/>Render"]
-    B --> IA["Google Gemini<br/>(IA)"]
-    B --> DB[("PostgreSQL + pgvector<br/>Supabase")]
-    B --> R[("Redis<br/>Upstash")]
-    B --> S[("Supabase Storage")]
+    U["Navegador web<br/>(usuario)"]
+    F["Frontend<br/>React + Vite SPA<br/>Cloudflare"]
+    B["Backend<br/>Django + ASGI + LangChain + DRF<br/>Render"]
+    IA["Google AI Studio<br/>LLM Gemini y embeddings"]
+    DB[("PostgreSQL + pgvector<br/>Supabase")]
+    S[("Supabase Storage")]
+
+    U -->|HTTPS GET| F
+    U -->|HTTPS REST / SSE| B
+    U -->|HTTPS GET| S
+    B -->|HTTPS REST| IA
+    B -->|TCP| DB
+    B -->|HTTPS REST| S
 ```
 
-- **Frontend:** aplicación web en React que consume la API del backend.
-- **Backend:** API en Django que contiene la lógica del sistema y el agente de IA.
-- **IA:** el modelo Gemini genera las recomendaciones; los embeddings se guardan en PostgreSQL con pgvector para buscar campañas por similitud.
-- **Datos:** PostgreSQL para la información y Supabase Storage para los archivos de los cómics.
-- **Caché:** Redis para acelerar las respuestas.
-
+- **Frontend:** aplicación de una sola página (SPA) en React y Vite, servida desde Cloudflare.
+- **Backend:** API en Django (ASGI) con la lógica central, el agente de IA (LangChain) y la API REST (DRF). Entrega las respuestas del agente en tiempo real mediante SSE.
+- **IA:** Google AI Studio provee el modelo Gemini y los embeddings para las recomendaciones.
+- **Datos:** PostgreSQL con pgvector guarda la información y permite buscar por similitud. Supabase Storage guarda los archivos de los cómics.
 ---
 
 ## Instrucciones para ejecutar el proyecto localmente
