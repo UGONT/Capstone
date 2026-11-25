@@ -38,7 +38,7 @@ En un sistema de crowdfunding esto es aún más crítico: si los lectores no enc
 | Base de datos | PostgreSQL con pgvector (Supabase) |
 | Archivos | Supabase Storage |
 | Nube | Cloudflare (frontend) y Render (backend) |
-| Control de versiones | Git y GitHub |
+| Control de versiones | GitHub |
 
 ---
 
