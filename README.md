@@ -44,7 +44,6 @@ En un sistema de crowdfunding esto es aún más crítico: si los lectores no enc
 
 ## Arquitectura
 
-![Diagrama de arquitectura de Epewtufe](docs/arquitectura.png)
 
 ```mermaid
 flowchart LR
