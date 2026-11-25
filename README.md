@@ -14,7 +14,12 @@ Para encontrar campañas, la plataforma incluye un **agente de IA conversacional
 
 ### ¿Qué problema resuelve?
 
-Plataformas como Webtoon no cuentan con un buen buscador, por lo que muchas historias de calidad nunca llegan a sus lectores. En un sistema de crowdfunding esto es aún más crítico: si los lectores no encuentran una campaña, esta no se financia. Epewtufe resuelve este problema con un buscador conversacional con IA, que conecta a los creadores independientes con la audiencia que realmente quiere leerlos.
+Las plataformas actuales no ayudan a descubrir cómics independientes:
+
+- **Kickstarter** es una plataforma de crowdfunding general: sus filtros de búsqueda son de texto estándar y los cómics quedan mezclados con todo tipo de proyectos. Sus propios usuarios plantean que un mejor motor de búsqueda haría aumentar las donaciones.
+- **Webtoon** no cuenta con un buen buscador y su algoritmo favorece las obras masivas, por lo que muchas historias de calidad nunca llegan a sus lectores.
+
+En un sistema de crowdfunding esto es aún más crítico: si los lectores no encuentran una campaña, esta no se financia. Epewtufe resuelve este problema con un **buscador conversacional con IA**, que recomienda campañas según los gustos del usuario y conecta a los creadores independientes con la audiencia que realmente quiere leerlos.
 
 ### ¿A quién va dirigido?
 
