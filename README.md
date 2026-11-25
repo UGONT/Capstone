@@ -125,7 +125,7 @@ El equipo trabaja con **Scrum**, organizado en **8 sprints** entre el 28 de agos
 
 | Integrante | Rol |
 |---|---|
-| Diego Vasquez | Gestión de Proyectos |
+| Diego Vasquez | Scrum Master |
 | **Hugo Ahumada** | **Desarrollo Fullstack (desarrollador principal)** |
 | Benjamín Piñones | Desarrollo Fullstack |
 | Luis Chodil | Desarrollo Fullstack y Automatización de Pruebas / QA |
@@ -133,7 +133,7 @@ El equipo trabaja con **Scrum**, organizado en **8 sprints** entre el 28 de agos
 
 ### Responsabilidades por rol
 
-- **Gestión de Proyectos:** liderazgo del equipo, negociación y gestión de stakeholders, y planificación y control del proyecto con metodologías ágiles.
+- **Scrum Master:** liderazgo y facilitación del equipo, eliminación de impedimentos, negociación y gestión de stakeholders, y planificación y control del proyecto con metodologías ágiles.
 - **Desarrollo Fullstack:** diseño e implementación de las interfaces de usuario (frontend), desarrollo de la lógica de negocio y las APIs en el backend, administración e integración de la base de datos, y conexión de servicios externos (pasarela de pagos y API del modelo de IA) con la aplicación. **Hugo Ahumada fue el desarrollador principal del proyecto**, y Benjamín Piñones y Luis Chodil colaboraron en el desarrollo.
 - **Automatización de Pruebas / QA:** diseño de estrategias de testing, automatización de pruebas funcionales y de regresión, y aseguramiento de la calidad del software en ciclos de desarrollo ágil.
 
