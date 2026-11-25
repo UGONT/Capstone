@@ -32,7 +32,7 @@ En un sistema de crowdfunding esto es aún más crítico: si los lectores no enc
 
 | Capa | Tecnologías |
 |---|---|
-| Frontend | React, Vite, TypeScript, Tailwind CSS |
+| Frontend | React, Vite, JavaScript, Tailwind CSS |
 | Backend | Python, Django, Django REST Framework (ASGI) |
 | Inteligencia artificial | LangChain, Google AI Studio (Gemini: LLM y embeddings) |
 | Base de datos | PostgreSQL con pgvector (Supabase) |
@@ -70,7 +70,7 @@ flowchart LR
 
 ## Instrucciones para ejecutar el proyecto localmente
 
-**Requisitos:** Git, Python 3.10+, Node.js 18+, una base de datos PostgreSQL con pgvector y una clave de API de Google AI Studio.
+**Requisitos:** Git, Python 3.14+, Node.js 18+, una base de datos PostgreSQL con pgvector y una clave de API de Google AI Studio.
 
 **1. Clonar el repositorio**
 
@@ -81,18 +81,14 @@ cd Capstone
 
 **2. Configurar las variables de entorno**
 
-```bash
-cp .env.example .env
-```
-
-Completa en el archivo `.env` la conexión a la base de datos, la clave de Gemini y los datos de Redis y Supabase.
+Completa en el archivo `.env` la conexión a la base de datos, la clave de Gemini y los datos de Supabase.
 
 **3. Levantar el backend**
 
 ```bash
-cd backend
+cd Backend
 python -m venv venv
-source venv/bin/activate        # En Windows: venv\Scripts\activate
+source venv\Scripts\activate       
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
@@ -101,7 +97,7 @@ python manage.py runserver
 **4. Levantar el frontend** (en otra terminal)
 
 ```bash
-cd frontend
+cd comics-version3
 npm install
 npm run dev
 ```
