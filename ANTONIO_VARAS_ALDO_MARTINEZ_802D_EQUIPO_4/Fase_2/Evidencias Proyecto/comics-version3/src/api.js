@@ -1,5 +1,6 @@
 // src/api.js
-const API_URL = '/api'
+/* const API_URL = '/api' */
+const API_URL = `${import.meta.env.VITE_API_BASE_URL || ''}/api`;
 
 // Helper: lee el body como JSON o devuelve un objeto de error
 async function leerJSON(res) {

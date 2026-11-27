@@ -1,5 +1,5 @@
 /Backend/.venv
 /Backend/.env
 .env
-
+/comics-version3/.env.production
 /comics-version3/.venv

@@ -130,15 +130,15 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
 
 
-    "https://tu-proyecto.pages.dev", #Cloudflare
+    "https://epewtufe.hu-ahumada.workers.dev", #Cloudflare
 ]
 
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8001",
     "http://localhost:5173",
-    "https://tu-backend.onrender.com",       # dominio real de Render
-    "https://tu-proyecto.pages.dev",         # dominio real de Cloudflare
+    "https://capstone-zp5q.onrender.com",       # dominio real de Render
+    "https://epewtufe.hu-ahumada.workers.dev",         # dominio real de Cloudflare
 ]
 
 
