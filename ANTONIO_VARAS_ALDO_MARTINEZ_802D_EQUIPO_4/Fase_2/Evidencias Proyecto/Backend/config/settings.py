@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 import datetime
+import dj_database_url
 
 load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -24,18 +25,26 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY')
+SECRET_KEY = os.getenv('SECRET_KEY') or os.getenv('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError(
+        "Falta SECRET_KEY (o DJANGO_SECRET_KEY) en las variables de entorno"
+    )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG') == 'True'
+DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = [
+""" ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     'testserver',
-    'capstone-zp5q.onrender.com'    
-]
+    'capstone-zp5q.onrender.com'  
+    'backend'  
+] """
 
+ALLOWED_HOSTS = os.environ.get(
+    'ALLOWED_HOSTS', 'localhost,127.0.0.1,backend'
+).split(',')
 
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if RENDER_EXTERNAL_HOSTNAME:
@@ -83,9 +92,11 @@ AUTHENTICATION_BACKENDS = [
 
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
+    
     'django.middleware.security.SecurityMiddleware',
+    
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -93,12 +104,44 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+
+if not DEBUG:
+    MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django_supabase_storage.SupabaseMediaStorage",
+    },
+    "staticfiles": {
+        "BACKEND": (
+            "django.contrib.staticfiles.storage.StaticFilesStorage"
+            if DEBUG
+            else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        ),
+    },
+}
+
+
+
 # Orígenes permitidos (Cloudflare Pages y localhost)
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",   # Vite
     "http://localhost:3000",   # CRA / Next
     "http://127.0.0.1:5173",
+
+
+    "https://tu-proyecto.pages.dev", #Cloudflare
 ]
+
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:8001",
+    "http://localhost:5173",
+    "https://tu-backend.onrender.com",       # dominio real de Render
+    "https://tu-proyecto.pages.dev",         # dominio real de Cloudflare
+]
+
+
 
 ROOT_URLCONF = 'config.urls'
 
@@ -123,7 +166,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
-DATABASES = {
+""" DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': os.environ.get('DB_NAME'),
@@ -132,22 +175,34 @@ DATABASES = {
         'HOST': os.environ.get('DB_HOST'),
         'PORT': os.environ.get('DB_PORT'),
     }
-}
+} """
+
+# --- BASE DE DATOS: Render usa DATABASE_URL; local usa las variables DB_* ---
+if os.environ.get('DATABASE_URL'):
+    # Producción (Render)
+    DATABASES = {
+        'default': dj_database_url.config(conn_max_age=600)
+    }
+else:
+    # Local (Docker + Supabase) — configuración actual
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'HOST': os.environ.get('DB_HOST'),
+            'NAME': os.environ.get('DB_NAME'),
+            'USER': os.environ.get('DB_USER'),
+            'PASSWORD': os.environ.get('DB_PASSWORD'),
+            'PORT': os.environ.get('DB_PORT'),
+        }
+    }
 
 
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
 
-SUPABASE_MEDIA_BUCKET = os.environ.get('DB_BUCKET')
+SUPABASE_MEDIA_BUCKET = os.environ.get('SUPABASE_BUCKET') or os.environ.get('DB_BUCKET')
 
-STORAGES = {
-    "default": {
-        "BACKEND": "django_supabase_storage.SupabaseMediaStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
-    },
-}
+
 
 MEDIA_URL = f'{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_MEDIA_BUCKET}/'
 
@@ -186,7 +241,10 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
+# --- Static files ---
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
 
 
 # Email
@@ -197,3 +255,7 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+
+
+
+

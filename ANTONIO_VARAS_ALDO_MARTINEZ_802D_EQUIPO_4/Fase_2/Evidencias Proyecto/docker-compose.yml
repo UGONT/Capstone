@@ -3,7 +3,7 @@ services:
     build: ./Backend
     container_name: comics_backend
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - ./Backend:/code
     env_file:
@@ -25,10 +25,13 @@ services:
 
   frontend:
     build: ./comics-version3
+    volumes:
+        - ./comics-version3:/app
+        - /app/node_modules
     container_name: comics_frontend
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://localhost:8000/api
+      - VITE_API_URL=http://localhost:8001/api
     depends_on:
       - backend
